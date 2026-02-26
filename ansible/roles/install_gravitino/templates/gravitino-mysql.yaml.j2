@@ -1,0 +1,104 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ gravitino_metadata_mysql_name }}-auth
+  namespace: {{ gravitino_metadata_mysql_namespace }}
+type: Opaque
+stringData:
+  mysql-root-password: {{ gravitino_metadata_mysql_root_password | quote }}
+  mysql-user: {{ gravitino_metadata_mysql_user | quote }}
+  mysql-password: {{ gravitino_metadata_mysql_password | quote }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ gravitino_metadata_mysql_service_name }}
+  namespace: {{ gravitino_metadata_mysql_namespace }}
+spec:
+  selector:
+    app: {{ gravitino_metadata_mysql_name }}
+  ports:
+  - name: mysql
+    port: {{ gravitino_metadata_mysql_port }}
+    targetPort: mysql
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ gravitino_metadata_mysql_name }}
+  namespace: {{ gravitino_metadata_mysql_namespace }}
+spec:
+  serviceName: {{ gravitino_metadata_mysql_service_name }}
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ gravitino_metadata_mysql_name }}
+  template:
+    metadata:
+      labels:
+        app: {{ gravitino_metadata_mysql_name }}
+    spec:
+{% if gravitino_metadata_mysql_node_selector | length > 0 %}
+      nodeSelector:
+{{ gravitino_metadata_mysql_node_selector | to_nice_yaml(indent=2) | indent(8, true) }}
+{% endif %}
+{% if gravitino_metadata_mysql_tolerations | length > 0 %}
+      tolerations:
+{{ gravitino_metadata_mysql_tolerations | to_nice_yaml(indent=2) | indent(8, true) }}
+{% endif %}
+{% if gravitino_metadata_mysql_affinity | length > 0 %}
+      affinity:
+{{ gravitino_metadata_mysql_affinity | to_nice_yaml(indent=2) | indent(8, true) }}
+{% endif %}
+      containers:
+      - name: mysql
+        image: {{ gravitino_metadata_mysql_image | quote }}
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ gravitino_metadata_mysql_name }}-auth
+              key: mysql-root-password
+        - name: MYSQL_DATABASE
+          value: {{ gravitino_metadata_mysql_gravitino_database | quote }}
+        - name: MYSQL_USER
+          valueFrom:
+            secretKeyRef:
+              name: {{ gravitino_metadata_mysql_name }}-auth
+              key: mysql-user
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ gravitino_metadata_mysql_name }}-auth
+              key: mysql-password
+        ports:
+        - name: mysql
+          containerPort: {{ gravitino_metadata_mysql_port }}
+        readinessProbe:
+          tcpSocket:
+            port: mysql
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+        livenessProbe:
+          tcpSocket:
+            port: mysql
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/mysql
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes:
+      - {{ gravitino_metadata_mysql_storage_access_mode }}
+{% if gravitino_metadata_mysql_storage_class_name | trim | length > 0 %}
+      storageClassName: {{ gravitino_metadata_mysql_storage_class_name | quote }}
+{% endif %}
+      resources:
+        requests:
+          storage: {{ gravitino_metadata_mysql_storage_size | quote }}

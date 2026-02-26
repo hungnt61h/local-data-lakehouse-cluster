@@ -1,0 +1,120 @@
+starrocks_release_name: starrocks
+starrocks_namespace: starrocks
+
+starrocks_repo_name: starrocks
+starrocks_repo_url: https://starrocks.github.io/starrocks-kubernetes-operator
+starrocks_chart_ref: "{{ starrocks_repo_name }}/kube-starrocks"
+starrocks_chart_version: "1.11.4"
+
+starrocks_helm_timeout: 20m
+starrocks_rollout_timeout: 20m
+
+starrocks_cluster_name: starrocks
+
+starrocks_operator_image_repository: starrocks/operator
+starrocks_operator_image_tag: v1.11.4
+starrocks_operator_image_pull_policy: IfNotPresent
+
+starrocks_fe_replicas: 3
+starrocks_fe_image_repository: starrocks/fe-ubuntu
+starrocks_fe_image_tag: "3.5-latest"
+starrocks_fe_image_pull_policy: IfNotPresent
+starrocks_fe_http_port: 8030
+starrocks_fe_query_port: 9030
+starrocks_fe_cloud_native_meta_port: 6090
+starrocks_fe_enable_load_volume_from_conf: true
+
+starrocks_fe_storage_name: fe
+starrocks_fe_storage_class: local-path
+starrocks_fe_storage_size: 10Gi
+starrocks_fe_log_storage_size: 0Gi
+
+starrocks_fe_resources_requests_cpu: "2"
+starrocks_fe_resources_requests_memory: 4Gi
+starrocks_fe_resources_limits_cpu: "2"
+starrocks_fe_resources_limits_memory: 4Gi
+
+starrocks_fe_node_selector: {}
+starrocks_fe_tolerations: []
+starrocks_fe_topology_spread_constraints: []
+starrocks_fe_affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: node-role.kubernetes.io/control-plane
+          operator: DoesNotExist
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+    - labelSelector:
+        matchExpressions:
+        - key: app.kubernetes.io/component
+          operator: In
+          values:
+          - fe
+      topologyKey: kubernetes.io/hostname
+
+starrocks_cn_replicas: 3
+starrocks_cn_image_repository: starrocks/cn-ubuntu
+starrocks_cn_image_tag: "3.5-latest"
+starrocks_cn_image_pull_policy: IfNotPresent
+
+starrocks_cn_resources_requests_cpu: "4"
+starrocks_cn_resources_requests_memory: 8Gi
+starrocks_cn_resources_limits_cpu: "4"
+starrocks_cn_resources_limits_memory: 8Gi
+
+starrocks_cn_persistence_enabled: false
+starrocks_cn_storage_name: cn
+starrocks_cn_storage_class: local-path
+starrocks_cn_storage_size: 50Gi
+starrocks_cn_log_storage_size: 0Gi
+starrocks_cn_spill_storage_size: 0Gi
+starrocks_cn_extra_config_lines: []
+
+starrocks_cn_node_selector: {}
+starrocks_cn_tolerations: []
+starrocks_cn_topology_spread_constraints: []
+starrocks_cn_affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: node-role.kubernetes.io/control-plane
+          operator: DoesNotExist
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+    - labelSelector:
+        matchExpressions:
+        - key: app.kubernetes.io/component
+          operator: In
+          values:
+          - cn
+      topologyKey: kubernetes.io/hostname
+
+starrocks_minio_enabled: true
+starrocks_minio_endpoint_internal: >-
+  http://{{ minio_release_name | default('minio') }}.{{ minio_namespace | default('minio') }}.svc.cluster.local:{{ minio_service_port | default(9000) }}
+starrocks_minio_access_key: "{{ minio_root_user | default('minioadmin') }}"
+starrocks_minio_secret_key: "{{ minio_root_password | default('minioadmin') }}"
+starrocks_minio_bucket: starrocks
+starrocks_minio_path: warehouse
+starrocks_minio_region: us-east-1
+
+starrocks_minio_auto_create_bucket: true
+starrocks_minio_bucket_job_name: starrocks-minio-bucket-bootstrap
+starrocks_minio_bucket_job_image: minio/mc:RELEASE.2025-07-21T05-28-08Z
+starrocks_minio_bucket_job_timeout: 5m
+
+starrocks_ingress_enabled: true
+starrocks_ingress_class_name: haproxy
+starrocks_ingress_host: "starrocks.{{ domain }}"
+starrocks_ingress_path: /
+starrocks_ingress_annotations: {}
+starrocks_ingress_tls_enabled: false
+starrocks_ingress_tls_secret_name: starrocks-tls
+
+starrocks_haproxy_tcp_enabled: true
+starrocks_haproxy_namespace: "{{ haproxy_ingress_namespace | default('ingress-controller') }}"
+starrocks_haproxy_tcp_configmap_name: haproxy-tcp-services
+starrocks_haproxy_sql_external_port: 9030

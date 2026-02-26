@@ -1,0 +1,20 @@
+[all:children]
+control_plane
+workers
+
+[control_plane]
+node1 ansible_host=192.168.0.30
+node2 ansible_host=192.168.0.31
+node6 ansible_host=192.168.0.35
+
+[workers]
+node3 ansible_host=192.168.0.32
+node4 ansible_host=192.168.0.33
+node5 ansible_host=192.168.0.34
+node7 ansible_host=192.168.0.36
+
+[all:vars]
+ansible_user=hung
+ansible_become=true
+ansible_become_method=sudo
+ansible_ssh_common_args='-o StrictHostKeyChecking=no'

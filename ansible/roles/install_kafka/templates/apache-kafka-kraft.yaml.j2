@@ -1,0 +1,186 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ apache_kafka_namespace }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ apache_kafka_headless_service_name }}
+  namespace: {{ apache_kafka_namespace }}
+  labels:
+    app: kafka
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app: kafka
+  ports:
+  - name: internal
+    port: {{ apache_kafka_internal_listener_port }}
+    targetPort: {{ apache_kafka_internal_listener_port }}
+  - name: controller
+    port: {{ apache_kafka_controller_listener_port }}
+    targetPort: {{ apache_kafka_controller_listener_port }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ apache_kafka_bootstrap_service_name }}
+  namespace: {{ apache_kafka_namespace }}
+  labels:
+    app: kafka
+spec:
+  type: ClusterIP
+  selector:
+    app: kafka
+  ports:
+  - name: internal
+    port: {{ apache_kafka_internal_listener_port }}
+    targetPort: {{ apache_kafka_internal_listener_port }}
+{% if apache_kafka_external_enabled %}
+{% for broker_idx in range(0, apache_kafka_broker_replicas | int) %}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ apache_kafka_statefulset_name }}-{{ broker_idx }}-external
+  namespace: {{ apache_kafka_namespace }}
+  labels:
+    app: kafka
+spec:
+  type: ClusterIP
+  selector:
+    app: kafka
+    statefulset.kubernetes.io/pod-name: {{ apache_kafka_statefulset_name }}-{{ broker_idx }}
+  ports:
+  - name: external
+    port: {{ apache_kafka_external_container_port }}
+    targetPort: {{ apache_kafka_external_container_port }}
+{% endfor %}
+{% endif %}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ apache_kafka_statefulset_name }}
+  namespace: {{ apache_kafka_namespace }}
+  labels:
+    app: kafka
+spec:
+  serviceName: {{ apache_kafka_headless_service_name }}
+  replicas: {{ apache_kafka_broker_replicas }}
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: kafka
+  template:
+    metadata:
+      labels:
+        app: kafka
+    spec:
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+{% if apache_kafka_node_selector | length > 0 %}
+      nodeSelector:
+{{ apache_kafka_node_selector | to_nice_yaml(indent=2) | indent(8, true) }}
+{% endif %}
+{% if apache_kafka_affinity | length > 0 %}
+      affinity:
+{{ apache_kafka_affinity | to_nice_yaml(indent=2) | indent(8, true) }}
+{% endif %}
+{% if apache_kafka_tolerations | length > 0 %}
+      tolerations:
+{{ apache_kafka_tolerations | to_nice_yaml(indent=2) | indent(8, true) }}
+{% endif %}
+      containers:
+      - name: kafka
+        image: "{{ apache_kafka_image_repository }}:{{ apache_kafka_image_tag }}"
+        imagePullPolicy: {{ apache_kafka_image_pull_policy }}
+        ports:
+        - name: internal
+          containerPort: {{ apache_kafka_internal_listener_port }}
+        - name: controller
+          containerPort: {{ apache_kafka_controller_listener_port }}
+{% if apache_kafka_external_enabled %}
+        - name: external
+          containerPort: {{ apache_kafka_external_container_port }}
+{% endif %}
+        command:
+        - /bin/bash
+        - -ec
+        - |
+          set -euo pipefail
+          BROKER_ID="${HOSTNAME##*-}"
+          mkdir -p /tmp/kraft
+          CONTROLLER_QUORUM_VOTERS="{% for voter_id in range(0, apache_kafka_broker_replicas | int) %}{{ voter_id }}@{{ apache_kafka_statefulset_name }}-{{ voter_id }}.{{ apache_kafka_headless_service_name }}.{{ apache_kafka_namespace }}.svc.{{ apache_kafka_cluster_domain }}:{{ apache_kafka_controller_listener_port }}{% if not loop.last %},{% endif %}{% endfor %}"
+          KAFKA_LISTENERS="INTERNAL://:{{ apache_kafka_internal_listener_port }},CONTROLLER://:{{ apache_kafka_controller_listener_port }}"
+          KAFKA_ADVERTISED_LISTENERS="INTERNAL://${HOSTNAME}.{{ apache_kafka_headless_service_name }}.{{ apache_kafka_namespace }}.svc.{{ apache_kafka_cluster_domain }}:{{ apache_kafka_internal_listener_port }}"
+          LISTENER_SECURITY_PROTOCOL_MAP="INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT"
+
+{% if apache_kafka_external_enabled %}
+          KAFKA_LISTENERS+=",EXTERNAL://:{{ apache_kafka_external_container_port }}"
+          KAFKA_ADVERTISED_LISTENERS+=",EXTERNAL://{{ apache_kafka_external_host }}:$(({{ apache_kafka_external_port_start | int }} + BROKER_ID))"
+          LISTENER_SECURITY_PROTOCOL_MAP+=",EXTERNAL:PLAINTEXT"
+{% endif %}
+
+          cat <<PROPS >/tmp/kraft/server.properties
+          process.roles=broker,controller
+          node.id=${BROKER_ID}
+          controller.quorum.voters=${CONTROLLER_QUORUM_VOTERS}
+          listeners=${KAFKA_LISTENERS}
+          advertised.listeners=${KAFKA_ADVERTISED_LISTENERS}
+          listener.security.protocol.map=${LISTENER_SECURITY_PROTOCOL_MAP}
+          inter.broker.listener.name=INTERNAL
+          controller.listener.names=CONTROLLER
+          log.dirs=/var/lib/kafka/data
+          num.partitions=3
+          default.replication.factor=3
+          min.insync.replicas=2
+          offsets.topic.replication.factor=3
+          transaction.state.log.replication.factor=3
+          transaction.state.log.min.isr=2
+          group.initial.rebalance.delay.ms=0
+          auto.create.topics.enable=true
+          PROPS
+
+          if [ ! -f /var/lib/kafka/data/meta.properties ]; then
+            /opt/kafka/bin/kafka-storage.sh format \
+              --ignore-formatted \
+              --cluster-id '{{ apache_kafka_cluster_id }}' \
+              --config /tmp/kraft/server.properties
+          fi
+
+          exec /opt/kafka/bin/kafka-server-start.sh /tmp/kraft/server.properties
+        readinessProbe:
+          tcpSocket:
+            port: {{ apache_kafka_internal_listener_port }}
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          timeoutSeconds: 5
+        livenessProbe:
+          tcpSocket:
+            port: {{ apache_kafka_internal_listener_port }}
+          initialDelaySeconds: 40
+          periodSeconds: 20
+          timeoutSeconds: 5
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/kafka/data
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+      labels:
+        app: kafka
+    spec:
+      accessModes: ["{{ apache_kafka_storage_access_mode }}"]
+      resources:
+        requests:
+          storage: {{ apache_kafka_storage_size }}
+{% if apache_kafka_storage_class | trim | length > 0 %}
+      storageClassName: {{ apache_kafka_storage_class | quote }}
+{% endif %}

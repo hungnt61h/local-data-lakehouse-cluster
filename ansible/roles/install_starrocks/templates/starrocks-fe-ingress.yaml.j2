@@ -1,0 +1,34 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ starrocks_cluster_name }}-fe
+  namespace: {{ starrocks_namespace }}
+{% if starrocks_ingress_annotations | length > 0 %}
+  annotations:
+{% for ingress_annotation_key, ingress_annotation_value in starrocks_ingress_annotations.items() %}
+    {{ ingress_annotation_key }}: {{ ingress_annotation_value | quote }}
+{% endfor %}
+{% else %}
+  annotations: {}
+{% endif %}
+spec:
+{% if starrocks_ingress_class_name | trim | length > 0 %}
+  ingressClassName: {{ starrocks_ingress_class_name }}
+{% endif %}
+  rules:
+  - host: {{ starrocks_ingress_host }}
+    http:
+      paths:
+      - path: {{ starrocks_ingress_path }}
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ starrocks_cluster_name }}-fe-service
+            port:
+              number: {{ starrocks_fe_http_port }}
+{% if starrocks_ingress_tls_enabled | bool %}
+  tls:
+  - secretName: {{ starrocks_ingress_tls_secret_name }}
+    hosts:
+    - {{ starrocks_ingress_host }}
+{% endif %}

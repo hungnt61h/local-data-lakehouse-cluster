@@ -1,0 +1,17 @@
+cert_manager_release_name: cert-manager
+cert_manager_namespace: cert-manager
+
+cert_manager_repo_name: jetstack
+cert_manager_repo_url: https://charts.jetstack.io
+cert_manager_chart_ref: jetstack/cert-manager
+
+cert_manager_helm_timeout: 10m
+cert_manager_rollout_timeout: 10m
+cert_manager_crd_wait_timeout: 5m
+
+cert_manager_crds_enabled: true
+cert_manager_prometheus_enabled: false
+
+cert_manager_replica_count: 1
+cert_manager_webhook_replica_count: 1
+cert_manager_cainjector_replica_count: 1

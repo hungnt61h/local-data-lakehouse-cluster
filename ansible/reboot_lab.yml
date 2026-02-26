@@ -1,0 +1,12 @@
+---
+- name: Restart all nodes to turn off the lab cluster
+  hosts: all
+  gather_facts: false
+  become: true
+  tasks:
+  - name: Restart immediately
+    ansible.builtin.shell: reboot
+    async: 60
+    poll: 0
+    ignore_unreachable: true
+    changed_when: true

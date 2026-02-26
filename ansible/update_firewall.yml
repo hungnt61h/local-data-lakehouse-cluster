@@ -1,0 +1,32 @@
+---
+- name: Update firewall rules
+  hosts: all
+  gather_facts: true
+  become: true
+  vars:
+    merged_ports: >-
+      {{
+        (firewalld_ports_all | default([]))
+        + (firewalld_ports_control_plane | default([]))
+        + (firewalld_ports_workers | default([]))
+        + (
+          (firewalld_ports_flink_spark_direct | default([]))
+          if (firewalld_enable_flink_spark_direct_ports | default(false) | bool)
+          else []
+        )
+      }}
+    merged_services: >-
+      {{
+        (firewalld_services_all | default([]))
+        + (firewalld_services_control_plane | default([]))
+        + (firewalld_services_workers | default([]))
+      }}
+    merged_rich_rules: >-
+      {{
+        (firewalld_rich_rules_all | default([]))
+        + (firewalld_rich_rules_control_plane | default([]))
+        + (firewalld_rich_rules_workers | default([]))
+      }}
+  tasks:
+  - include_role:
+      name: update_firewall

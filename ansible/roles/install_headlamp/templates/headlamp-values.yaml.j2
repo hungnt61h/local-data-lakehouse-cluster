@@ -1,0 +1,41 @@
+config:
+  inCluster: true
+  oidc:
+    secret:
+      create: false
+
+clusterRoleBinding:
+  create: true
+  clusterRoleName: {{ headlamp_cluster_role_name }}
+
+service:
+  type: {{ headlamp_service_type }}
+  port: {{ headlamp_service_port }}
+{% if headlamp_service_type == "NodePort" %}
+  nodePort: {{ headlamp_service_node_port }}
+{% endif %}
+
+ingress:
+  enabled: {{ 'true' if headlamp_ingress_enabled else 'false' }}
+{% if headlamp_ingress_annotations | length > 0 %}
+  annotations:
+{% for annotation_key, annotation_value in headlamp_ingress_annotations.items() %}
+    {{ annotation_key }}: {{ annotation_value | quote }}
+{% endfor %}
+{% else %}
+  annotations: {}
+{% endif %}
+  ingressClassName: {{ headlamp_ingress_class_name }}
+  hosts:
+  - host: {{ headlamp_ingress_host }}
+    paths:
+    - path: {{ headlamp_ingress_path }}
+      type: {{ headlamp_ingress_path_type }}
+{% if headlamp_ingress_tls_enabled %}
+  tls:
+  - secretName: {{ headlamp_ingress_tls_secret_name }}
+    hosts:
+    - {{ headlamp_ingress_host }}
+{% else %}
+  tls: []
+{% endif %}

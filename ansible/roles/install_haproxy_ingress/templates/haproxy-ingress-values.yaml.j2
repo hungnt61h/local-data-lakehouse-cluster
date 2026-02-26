@@ -1,0 +1,38 @@
+controller:
+  replicaCount: {{ haproxy_ingress_replica_count }}
+  ingressClassResource:
+    name: {{ haproxy_ingress_class_name }}
+    default: {{ 'true' if haproxy_ingress_class_default else 'false' }}
+  ingressClass: {{ haproxy_ingress_class_name }}
+{% if haproxy_ingress_extra_args | length > 0 %}
+  extraArgs:
+{% for extra_arg in haproxy_ingress_extra_args %}
+  - {{ extra_arg | quote }}
+{% endfor %}
+{% endif %}
+  service:
+    type: {{ haproxy_ingress_service_type }}
+    ports:
+      http: {{ haproxy_ingress_service_http_port }}
+      https: {{ haproxy_ingress_service_https_port }}
+      stat: {{ haproxy_ingress_service_stat_port }}
+      admin: {{ haproxy_ingress_service_admin_port }}
+    enablePorts:
+      http: {{ 'true' if haproxy_ingress_enable_http_port else 'false' }}
+      https: {{ 'true' if haproxy_ingress_enable_https_port else 'false' }}
+      stat: {{ 'true' if haproxy_ingress_enable_stat_port else 'false' }}
+      admin: {{ 'true' if haproxy_ingress_enable_admin_port else 'false' }}
+{% if haproxy_ingress_service_tcp_ports | length > 0 %}
+    tcpPorts:
+{% for tcp_port in haproxy_ingress_service_tcp_ports %}
+    - name: {{ tcp_port.name }}
+      port: {{ tcp_port.port }}
+      targetPort: {{ tcp_port.targetPort | default(tcp_port.port) }}
+{% if tcp_port.nodePort is defined %}
+      nodePort: {{ tcp_port.nodePort }}
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if haproxy_ingress_service_load_balancer_ip | trim | length > 0 %}
+    loadBalancerIP: {{ haproxy_ingress_service_load_balancer_ip }}
+{% endif %}

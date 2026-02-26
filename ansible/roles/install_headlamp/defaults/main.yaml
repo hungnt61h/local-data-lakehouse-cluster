@@ -1,0 +1,22 @@
+headlamp_release_name: my-headlamp
+headlamp_namespace: kube-system
+
+headlamp_repo_name: headlamp
+headlamp_repo_url: https://kubernetes-sigs.github.io/headlamp/
+headlamp_chart_ref: headlamp/headlamp
+
+headlamp_service_type: NodePort
+headlamp_service_port: 80
+headlamp_service_node_port: 30080
+
+headlamp_cluster_role_name: cluster-admin
+headlamp_helm_timeout: 10m
+
+headlamp_ingress_enabled: true
+headlamp_ingress_class_name: haproxy
+headlamp_ingress_host: "headlamp.{{ domain }}"
+headlamp_ingress_path: /
+headlamp_ingress_path_type: Prefix
+headlamp_ingress_annotations: {}
+headlamp_ingress_tls_enabled: false
+headlamp_ingress_tls_secret_name: headlamp-tls

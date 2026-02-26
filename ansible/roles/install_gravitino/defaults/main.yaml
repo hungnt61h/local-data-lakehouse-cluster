@@ -1,0 +1,210 @@
+gravitino_release_name: gravitino
+gravitino_namespace: gravitino
+
+gravitino_chart_git_repo: https://github.com/apache/gravitino.git
+gravitino_chart_git_version: v1.1.0
+gravitino_chart_checkout_path: /opt/gravitino
+gravitino_chart_path: "{{ gravitino_chart_checkout_path }}/dev/charts/gravitino"
+gravitino_iceberg_rest_chart_path: "{{ gravitino_chart_checkout_path }}/dev/charts/gravitino-iceberg-rest-server"
+gravitino_chart_update_dependencies: true
+
+gravitino_helm_timeout: 15m
+gravitino_rollout_timeout: 10m
+gravitino_helm_reset_values: false
+
+gravitino_replica_count: 1
+
+gravitino_image_registry: docker.io
+gravitino_image_repository: apache/gravitino
+gravitino_image_tag: "1.1.0"
+gravitino_image_pull_policy: IfNotPresent
+
+gravitino_service_name: gravitino
+gravitino_service_type: ClusterIP
+gravitino_service_port: 8090
+gravitino_service_target_port: 8090
+gravitino_service_node_port: ""
+gravitino_service_annotations: {}
+gravitino_service_labels: {}
+
+gravitino_ingress_enabled: true
+gravitino_ingress_class_name: "{{ haproxy_ingress_class_name | default('haproxy') }}"
+gravitino_ingress_host: "gravitino.{{ domain }}"
+gravitino_ingress_path: /
+gravitino_ingress_path_type: Prefix
+gravitino_ingress_annotations: {}
+gravitino_ingress_tls_enabled: false
+gravitino_ingress_tls_secret_name: gravitino-tls
+
+# Optional MySQL metadata backend used by Gravitino and Iceberg REST catalogs.
+gravitino_metadata_mysql_enabled: false
+gravitino_metadata_mysql_namespace: "{{ gravitino_namespace }}"
+gravitino_metadata_mysql_name: gravitino-mysql
+gravitino_metadata_mysql_service_name: "{{ gravitino_metadata_mysql_name }}"
+gravitino_metadata_mysql_port: 3306
+gravitino_metadata_mysql_image: mysql:8.4
+gravitino_metadata_mysql_storage_size: 5Gi
+gravitino_metadata_mysql_storage_class_name: local-path
+gravitino_metadata_mysql_storage_access_mode: ReadWriteOnce
+gravitino_metadata_mysql_root_password: gravitino-root
+gravitino_metadata_mysql_user: gravitino
+gravitino_metadata_mysql_password: gravitino
+gravitino_metadata_mysql_gravitino_database: gravitino
+gravitino_metadata_mysql_iceberg_rest_database: gravitino_iceberg_rest
+gravitino_metadata_mysql_schema_sql_file: schema-1.1.0-mysql.sql
+gravitino_metadata_mysql_iceberg_metrics_schema_sql_file: iceberg-metrics-schema-1.1.0-mysql.sql
+gravitino_metadata_mysql_rollout_timeout: 10m
+gravitino_metadata_mysql_node_selector: {}
+gravitino_metadata_mysql_tolerations: []
+gravitino_metadata_mysql_affinity: {}
+
+gravitino_entity_store: relational
+gravitino_entity_relational_backend: JDBCBackend
+gravitino_entity_jdbc_url: jdbc:h2
+gravitino_entity_jdbc_driver: org.h2.Driver
+gravitino_entity_jdbc_user: gravitino
+gravitino_entity_jdbc_password: gravitino
+gravitino_entity_storage_path: /root/gravitino/data/jdbc
+
+gravitino_authenticators: simple
+gravitino_authorization_enabled: false
+gravitino_authorization_service_admins: anonymous
+
+# Embedded Iceberg REST service in the main Gravitino server.
+gravitino_iceberg_rest_enabled: false
+gravitino_aux_service_names: iceberg-rest
+gravitino_iceberg_rest_http_port: 9001
+gravitino_iceberg_rest_catalog_backend: memory
+gravitino_iceberg_rest_warehouse: "s3://{{ gravitino_minio_bucket }}/iceberg/"
+gravitino_iceberg_rest_io_impl: org.apache.iceberg.aws.s3.S3FileIO
+
+gravitino_minio_enabled: true
+gravitino_minio_namespace: minio
+gravitino_minio_service_name: minio
+gravitino_minio_service_port: 9000
+gravitino_minio_endpoint_internal: >-
+  http://{{ gravitino_minio_service_name }}.{{ gravitino_minio_namespace }}.svc.cluster.local:{{ gravitino_minio_service_port }}
+gravitino_minio_access_key: minioadmin
+gravitino_minio_secret_key: minioadmin
+gravitino_minio_path_style_access: true
+gravitino_minio_region: ""
+gravitino_minio_bucket: gravitino
+gravitino_minio_auto_create_bucket: true
+gravitino_minio_bucket_job_name: "{{ gravitino_release_name }}-minio-bucket"
+gravitino_minio_bucket_job_image: minio/mc:RELEASE.2025-07-21T05-28-08Z
+gravitino_minio_bucket_job_timeout: 6m
+
+gravitino_env:
+  - name: GRAVITINO_HOME
+    value: /root/gravitino
+  - name: GRAVITINO_MEM
+    value: "-Xms1024m -Xmx1024m -XX:MaxMetaspaceSize=512m"
+gravitino_env_with_tpl: []
+gravitino_env_from: []
+
+gravitino_extra_volumes:
+  - name: gravitino-log
+    emptyDir: {}
+gravitino_extra_volume_mounts:
+  - name: gravitino-log
+    mountPath: /root/gravitino/logs
+
+gravitino_resources: {}
+gravitino_init_resources: {}
+gravitino_node_selector: {}
+gravitino_tolerations: []
+gravitino_affinity: {}
+
+gravitino_visible_configs: ""
+gravitino_visible_config_items: {}
+gravitino_additional_config_items: {}
+
+# Persist Gravitino metadata (H2 files) on PVC-backed storage.
+gravitino_persistence_enabled: true
+gravitino_persistence_access_modes:
+  - ReadWriteOnce
+gravitino_persistence_size: 10Gi
+gravitino_persistence_labels: {}
+gravitino_persistence_annotations: {}
+gravitino_persistence_existing_claim: "{{ gravitino_release_name }}-storage"
+gravitino_persistence_auto_create_pvc: true
+gravitino_persistence_storage_class_name: local-path
+
+# Standalone Apache Gravitino Iceberg REST Catalog Server.
+gravitino_iceberg_rest_server_enabled: true
+gravitino_iceberg_rest_release_name: gravitino-iceberg-rest
+gravitino_iceberg_rest_namespace: "{{ gravitino_namespace }}"
+gravitino_iceberg_rest_helm_timeout: 15m
+gravitino_iceberg_rest_rollout_timeout: 10m
+gravitino_iceberg_rest_helm_reset_values: false
+
+gravitino_iceberg_rest_replica_count: 1
+gravitino_iceberg_rest_image_repository: apache/gravitino-iceberg-rest
+gravitino_iceberg_rest_image_tag: "1.1.0"
+gravitino_iceberg_rest_image_pull_policy: IfNotPresent
+
+gravitino_iceberg_rest_chart_name: gravitino-iceberg-rest-server
+gravitino_iceberg_rest_service_name: >-
+  {{
+    gravitino_iceberg_rest_release_name
+    if (gravitino_iceberg_rest_chart_name in gravitino_iceberg_rest_release_name)
+    else (gravitino_iceberg_rest_release_name ~ '-' ~ gravitino_iceberg_rest_chart_name)
+  }}
+gravitino_iceberg_rest_service_type: ClusterIP
+gravitino_iceberg_rest_service_port: 9001
+gravitino_iceberg_rest_service_target_port: 9001
+gravitino_iceberg_rest_service_node_port: ""
+gravitino_iceberg_rest_service_annotations: {}
+gravitino_iceberg_rest_service_labels: {}
+
+gravitino_iceberg_rest_ingress_enabled: true
+gravitino_iceberg_rest_ingress_class_name: "{{ haproxy_ingress_class_name | default('haproxy') }}"
+gravitino_iceberg_rest_ingress_host: "gravitino-iceberg-rest.{{ domain }}"
+gravitino_iceberg_rest_ingress_path: /
+gravitino_iceberg_rest_ingress_path_type: Prefix
+gravitino_iceberg_rest_ingress_annotations: {}
+gravitino_iceberg_rest_ingress_tls_enabled: false
+gravitino_iceberg_rest_ingress_tls_secret_name: gravitino-iceberg-rest-tls
+
+gravitino_iceberg_rest_catalog_config_provider: ""
+gravitino_iceberg_rest_dynamic_config_provider_enabled: false
+gravitino_iceberg_rest_dynamic_config_provider_uri: >-
+  http://{{ gravitino_release_name }}.{{ gravitino_namespace }}.svc.cluster.local:{{ gravitino_service_port }}
+gravitino_iceberg_rest_dynamic_config_provider_metalake: ""
+gravitino_iceberg_rest_dynamic_config_provider_default_catalog_name: ""
+gravitino_iceberg_rest_credential_providers: ""
+gravitino_iceberg_rest_additional_config_items: {}
+
+# Persist standalone Iceberg REST catalog metadata using a dedicated PVC.
+gravitino_iceberg_rest_persistence_enabled: false
+gravitino_iceberg_rest_persistence_access_modes:
+  - ReadWriteOnce
+gravitino_iceberg_rest_persistence_size: 5Gi
+gravitino_iceberg_rest_persistence_labels: {}
+gravitino_iceberg_rest_persistence_annotations: {}
+gravitino_iceberg_rest_persistence_existing_claim: "{{ gravitino_iceberg_rest_release_name }}-storage"
+gravitino_iceberg_rest_persistence_auto_create_pvc: true
+gravitino_iceberg_rest_persistence_storage_class_name: local-path
+
+gravitino_iceberg_rest_env:
+  - name: GRAVITINO_HOME
+    value: /root/gravitino-iceberg-rest-server
+  - name: GRAVITINO_MEM
+    value: "-Xms1024m -Xmx1024m -XX:MaxMetaspaceSize=512m"
+gravitino_iceberg_rest_init_script: |
+  echo "Override config."
+  cp /tmp/conf/* ${GRAVITINO_HOME}/conf
+  echo "Start the Gravitino Iceberg Rest Catalog Server"
+  /bin/bash ${GRAVITINO_HOME}/bin/gravitino-iceberg-rest-server.sh run
+gravitino_iceberg_rest_env_from: []
+gravitino_iceberg_rest_resources: {}
+gravitino_iceberg_rest_node_selector: {}
+gravitino_iceberg_rest_tolerations: []
+gravitino_iceberg_rest_affinity: {}
+
+gravitino_iceberg_rest_extra_volumes:
+  - name: gravitino-rest-catalog-server-log
+    emptyDir: {}
+gravitino_iceberg_rest_extra_volume_mounts:
+  - name: gravitino-rest-catalog-server-log
+    mountPath: /root/gravitino-iceberg-rest-server/logs

@@ -1,0 +1,120 @@
+operator:
+  starrocksOperator:
+    enabled: true
+    image:
+      repository: {{ starrocks_operator_image_repository }}
+      tag: {{ starrocks_operator_image_tag }}
+    imagePullPolicy: {{ starrocks_operator_image_pull_policy }}
+
+starrocks:
+  starrocksCluster:
+    name: {{ starrocks_cluster_name }}
+    namespace: {{ starrocks_namespace }}
+    enabledBe: false
+    enabledCn: true
+
+  starrocksFESpec:
+    replicas: {{ starrocks_fe_replicas }}
+    image:
+      repository: {{ starrocks_fe_image_repository }}
+      tag: {{ starrocks_fe_image_tag | quote }}
+    imagePullPolicy: {{ starrocks_fe_image_pull_policy }}
+    resources:
+      requests:
+        cpu: {{ starrocks_fe_resources_requests_cpu | quote }}
+        memory: {{ starrocks_fe_resources_requests_memory }}
+      limits:
+        cpu: {{ starrocks_fe_resources_limits_cpu | quote }}
+        memory: {{ starrocks_fe_resources_limits_memory }}
+    storageSpec:
+      name: {{ starrocks_fe_storage_name }}
+      storageClassName: {{ starrocks_fe_storage_class | quote }}
+      storageSize: {{ starrocks_fe_storage_size }}
+      logStorageSize: {{ starrocks_fe_log_storage_size }}
+    config: |
+      LOG_DIR = ${STARROCKS_HOME}/log
+      DATE = "$(date +%Y%m%d-%H%M%S)"
+      JAVA_OPTS="-Dlog4j2.formatMsgNoLookups=true -Xmx4096m -XX:+UseG1GC -Xlog:gc*:${LOG_DIR}/fe.gc.log.$DATE:time"
+      http_port = {{ starrocks_fe_http_port }}
+      rpc_port = 9020
+      query_port = {{ starrocks_fe_query_port }}
+      edit_log_port = 9010
+      mysql_service_nio_enabled = true
+      sys_log_level = INFO
+      run_mode = shared_data
+      cloud_native_meta_port = {{ starrocks_fe_cloud_native_meta_port }}
+{% if starrocks_minio_enabled | bool %}
+      cloud_native_storage_type = S3
+      aws_s3_path = {{ (starrocks_minio_bucket ~ ('/' ~ starrocks_minio_path if starrocks_minio_path | trim | length > 0 else '')) | quote }}
+      aws_s3_region = {{ starrocks_minio_region | quote }}
+      aws_s3_endpoint = {{ starrocks_minio_endpoint_internal | quote }}
+      aws_s3_access_key = {{ starrocks_minio_access_key | quote }}
+      aws_s3_secret_key = {{ starrocks_minio_secret_key | quote }}
+{% endif %}
+      enable_load_volume_from_conf = {{ 'true' if starrocks_fe_enable_load_volume_from_conf else 'false' }}
+{% if starrocks_fe_node_selector | length > 0 %}
+    nodeSelector:
+{{ starrocks_fe_node_selector | to_nice_yaml(indent=2) | indent(6, true) }}
+{% endif %}
+{% if starrocks_fe_tolerations | length > 0 %}
+    tolerations:
+{{ starrocks_fe_tolerations | to_nice_yaml(indent=2) | indent(6, true) }}
+{% endif %}
+{% if starrocks_fe_affinity | length > 0 %}
+    affinity:
+{{ starrocks_fe_affinity | to_nice_yaml(indent=2) | indent(6, true) }}
+{% endif %}
+{% if starrocks_fe_topology_spread_constraints | length > 0 %}
+    topologySpreadConstraints:
+{{ starrocks_fe_topology_spread_constraints | to_nice_yaml(indent=2) | indent(6, true) }}
+{% endif %}
+
+  starrocksCnSpec:
+    replicas: {{ starrocks_cn_replicas }}
+    image:
+      repository: {{ starrocks_cn_image_repository }}
+      tag: {{ starrocks_cn_image_tag | quote }}
+    imagePullPolicy: {{ starrocks_cn_image_pull_policy }}
+    resources:
+      requests:
+        cpu: {{ starrocks_cn_resources_requests_cpu | quote }}
+        memory: {{ starrocks_cn_resources_requests_memory }}
+      limits:
+        cpu: {{ starrocks_cn_resources_limits_cpu | quote }}
+        memory: {{ starrocks_cn_resources_limits_memory }}
+{% if starrocks_cn_persistence_enabled | bool %}
+    storageSpec:
+      name: {{ starrocks_cn_storage_name }}
+      storageClassName: {{ starrocks_cn_storage_class | quote }}
+      storageSize: {{ starrocks_cn_storage_size }}
+      logStorageSize: {{ starrocks_cn_log_storage_size }}
+      spillStorageSize: {{ starrocks_cn_spill_storage_size }}
+{% endif %}
+    config: |
+      sys_log_level = INFO
+      thrift_port = 9060
+      webserver_port = 8040
+      heartbeat_service_port = 9050
+      brpc_port = 8060
+{% if starrocks_cn_persistence_enabled | bool %}
+      storage_root_path = /opt/starrocks/cn/storage
+{% endif %}
+{% for cn_config_line in starrocks_cn_extra_config_lines %}
+      {{ cn_config_line }}
+{% endfor %}
+{% if starrocks_cn_node_selector | length > 0 %}
+    nodeSelector:
+{{ starrocks_cn_node_selector | to_nice_yaml(indent=2) | indent(6, true) }}
+{% endif %}
+{% if starrocks_cn_tolerations | length > 0 %}
+    tolerations:
+{{ starrocks_cn_tolerations | to_nice_yaml(indent=2) | indent(6, true) }}
+{% endif %}
+{% if starrocks_cn_affinity | length > 0 %}
+    affinity:
+{{ starrocks_cn_affinity | to_nice_yaml(indent=2) | indent(6, true) }}
+{% endif %}
+{% if starrocks_cn_topology_spread_constraints | length > 0 %}
+    topologySpreadConstraints:
+{{ starrocks_cn_topology_spread_constraints | to_nice_yaml(indent=2) | indent(6, true) }}
+{% endif %}

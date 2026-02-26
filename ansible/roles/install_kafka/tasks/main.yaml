@@ -1,0 +1,89 @@
+- name: Ensure kubectl is available
+  ansible.builtin.command: kubectl version --client
+  register: apache_kafka_kubectl_version
+  changed_when: false
+  when: inventory_hostname == first_cp
+
+- name: Validate Apache Kafka KRaft replica count
+  ansible.builtin.assert:
+    that:
+    - apache_kafka_broker_replicas | int >= 3
+    fail_msg: "KRaft mode requires at least 3 replicas for this role."
+  when: inventory_hostname == first_cp
+
+- name: Render Apache Kafka KRaft manifest
+  ansible.builtin.template:
+    src: apache-kafka-kraft.yaml.j2
+    dest: /root/apache-kafka-kraft.yaml
+    mode: "0600"
+  when: inventory_hostname == first_cp
+
+- name: Apply Apache Kafka KRaft manifest
+  ansible.builtin.command: >-
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf
+    apply -f /root/apache-kafka-kraft.yaml
+  register: apache_kafka_apply
+  changed_when: >-
+    'created' in apache_kafka_apply.stdout
+    or 'configured' in apache_kafka_apply.stdout
+    or 'patched' in apache_kafka_apply.stdout
+  when: inventory_hostname == first_cp
+
+- name: Render HAProxy TCP services config for Kafka
+  ansible.builtin.template:
+    src: haproxy-kafka-tcp-services.yaml.j2
+    dest: /root/haproxy-kafka-tcp-services.yaml
+    mode: "0600"
+  when:
+  - inventory_hostname == first_cp
+  - apache_kafka_external_enabled | bool
+  - apache_kafka_haproxy_tcp_enabled | bool
+
+- name: Apply HAProxy TCP services config for Kafka
+  ansible.builtin.command: >-
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf
+    apply -f /root/haproxy-kafka-tcp-services.yaml
+  register: apache_kafka_haproxy_tcp_apply
+  changed_when: >-
+    'created' in apache_kafka_haproxy_tcp_apply.stdout
+    or 'configured' in apache_kafka_haproxy_tcp_apply.stdout
+    or 'patched' in apache_kafka_haproxy_tcp_apply.stdout
+  when:
+  - inventory_hostname == first_cp
+  - apache_kafka_external_enabled | bool
+  - apache_kafka_haproxy_tcp_enabled | bool
+
+- name: Wait for Apache Kafka StatefulSet rollout
+  ansible.builtin.command: >-
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf -n {{ apache_kafka_namespace }}
+    rollout status statefulset/{{ apache_kafka_statefulset_name }}
+    --timeout={{ apache_kafka_rollout_timeout }}
+  register: apache_kafka_rollout
+  changed_when: false
+  when: inventory_hostname == first_cp
+
+- name: Show Apache Kafka pods
+  ansible.builtin.command: >-
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf -n {{ apache_kafka_namespace }}
+    get pods -l app=kafka -o wide
+  register: apache_kafka_pods
+  changed_when: false
+  when: inventory_hostname == first_cp
+
+- name: Show Apache Kafka pod output
+  ansible.builtin.debug:
+    var: apache_kafka_pods.stdout_lines
+  when: inventory_hostname == first_cp
+
+- name: Show Apache Kafka services
+  ansible.builtin.command: >-
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf -n {{ apache_kafka_namespace }}
+    get svc -l app=kafka -o wide
+  register: apache_kafka_services
+  changed_when: false
+  when: inventory_hostname == first_cp
+
+- name: Show Apache Kafka service output
+  ansible.builtin.debug:
+    var: apache_kafka_services.stdout_lines
+  when: inventory_hostname == first_cp

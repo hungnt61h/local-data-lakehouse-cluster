@@ -1,0 +1,25 @@
+spec:
+  template:
+    spec:
+      hostNetwork: {{ 'true' if metrics_server_host_network else 'false' }}
+{% if metrics_server_host_network %}
+      dnsPolicy: ClusterFirstWithHostNet
+{% endif %}
+      containers:
+      - name: metrics-server
+        args:
+        - --cert-dir=/tmp
+        - --secure-port={{ metrics_server_secure_port }}
+        - --kubelet-preferred-address-types={{ metrics_server_kubelet_preferred_address_types }}
+{% if metrics_server_kubelet_use_node_status_port %}
+        - --kubelet-use-node-status-port
+{% endif %}
+{% if metrics_server_kubelet_insecure_tls %}
+        - --kubelet-insecure-tls
+{% endif %}
+        - --metric-resolution={{ metrics_server_metric_resolution }}
+        ports:
+        - $patch: replace
+        - containerPort: {{ metrics_server_secure_port }}
+          name: https
+          protocol: TCP

@@ -1,0 +1,30 @@
+haproxy_ingress_release_name: haproxy-ingress
+haproxy_ingress_namespace: ingress-controller
+
+haproxy_ingress_repo_name: haproxytech
+haproxy_ingress_repo_url: https://haproxytech.github.io/helm-charts
+haproxy_ingress_chart_ref: haproxytech/kubernetes-ingress
+
+haproxy_ingress_helm_timeout: 10m
+haproxy_ingress_rollout_timeout: 10m
+
+haproxy_ingress_replica_count: 2
+haproxy_ingress_class_name: haproxy
+haproxy_ingress_class_default: false
+
+haproxy_ingress_service_type: LoadBalancer
+haproxy_ingress_service_load_balancer_ip: "{{ haproxy_ingress_ip | default('') }}"
+haproxy_ingress_service_http_port: 80
+haproxy_ingress_service_https_port: 443
+haproxy_ingress_service_stat_port: 1024
+haproxy_ingress_service_admin_port: 6060
+haproxy_ingress_enable_http_port: true
+haproxy_ingress_enable_https_port: true
+haproxy_ingress_enable_stat_port: false
+haproxy_ingress_enable_admin_port: false
+
+# Optional TCP exposure (for non-HTTP services like Kafka).
+haproxy_ingress_service_tcp_ports: []
+
+# Optional extra controller args (for example configmap-based TCP services).
+haproxy_ingress_extra_args: []

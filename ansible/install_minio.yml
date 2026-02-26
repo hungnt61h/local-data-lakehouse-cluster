@@ -1,0 +1,10 @@
+---
+- name: Install MinIO
+  hosts: all
+  gather_facts: true
+  become: true
+  vars:
+    first_cp: "{{ groups['control_plane'][0] }}"
+  tasks:
+  - include_role:
+      name: install_minio

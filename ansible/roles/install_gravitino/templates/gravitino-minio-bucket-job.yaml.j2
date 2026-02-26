@@ -1,0 +1,21 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ gravitino_minio_bucket_job_name }}
+  namespace: {{ gravitino_namespace }}
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: minio-client
+        image: {{ gravitino_minio_bucket_job_image | quote }}
+        imagePullPolicy: IfNotPresent
+        command:
+        - /bin/sh
+        - -ec
+        - |
+          mc alias set minio {{ gravitino_minio_endpoint_internal | quote }} {{ gravitino_minio_access_key | quote }} {{ gravitino_minio_secret_key | quote }}
+          mc mb --ignore-existing minio/{{ gravitino_minio_bucket }}

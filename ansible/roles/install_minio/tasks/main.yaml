@@ -1,0 +1,353 @@
+- name: Ensure helm is available
+  ansible.builtin.command: helm version --short
+  register: minio_helm_version
+  changed_when: false
+  when: inventory_hostname == first_cp
+
+- name: Ensure kubectl is available
+  ansible.builtin.command: kubectl version --client
+  register: minio_kubectl_version
+  changed_when: false
+  when: inventory_hostname == first_cp
+
+- name: Validate MinIO distributed mode settings
+  ansible.builtin.assert:
+    that:
+    - minio_replicas | int >= 4
+    - minio_replicas | int <= (groups['workers'] | length)
+    fail_msg: >-
+      Distributed MinIO requires at least 4 replicas and cannot exceed
+      available workers. Current replicas={{ minio_replicas }}, workers={{ groups['workers'] | length }}.
+  when:
+  - inventory_hostname == first_cp
+  - minio_mode == "distributed"
+
+- name: Determine effective MinIO storage class
+  ansible.builtin.set_fact:
+    minio_effective_storage_class: >-
+      {{
+        (minio_persistence_storage_class | trim)
+        if (minio_persistence_storage_class | trim | length > 0)
+        else minio_storage_class_name
+      }}
+  when: inventory_hostname == first_cp
+
+- name: Check MinIO storage class availability
+  ansible.builtin.command: >-
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf
+    get storageclass {{ minio_effective_storage_class }} -o name --ignore-not-found
+  register: minio_storage_class_existing
+  changed_when: false
+  when: inventory_hostname == first_cp
+
+- name: Install local-path provisioner when storage class is missing
+  ansible.builtin.command: >-
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf
+    apply -f {{ minio_storage_class_manifest_url }}
+  register: minio_local_path_apply
+  changed_when: >-
+    'created' in minio_local_path_apply.stdout
+    or 'configured' in minio_local_path_apply.stdout
+  when:
+  - inventory_hostname == first_cp
+  - minio_storage_class_auto_create
+  - minio_storage_class_existing.stdout | trim | length == 0
+
+- name: Wait for local-path provisioner rollout
+  ansible.builtin.command: >-
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf
+    -n {{ minio_storage_class_provisioner_namespace }}
+    rollout status deployment/{{ minio_storage_class_provisioner_deployment }}
+    --timeout={{ minio_storage_class_wait_timeout }}
+  register: minio_local_path_rollout
+  changed_when: false
+  when:
+  - inventory_hostname == first_cp
+  - minio_storage_class_auto_create
+  - minio_storage_class_existing.stdout | trim | length == 0
+
+- name: Wait for MinIO storage class to be available
+  ansible.builtin.command: >-
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf
+    get storageclass {{ minio_effective_storage_class }} -o name
+  register: minio_storage_class_ready
+  changed_when: false
+  retries: 20
+  delay: 6
+  until: minio_storage_class_ready.rc == 0
+  when:
+  - inventory_hostname == first_cp
+  - minio_storage_class_auto_create
+  - minio_storage_class_existing.stdout | trim | length == 0
+
+- name: Ensure MinIO storage class exists
+  ansible.builtin.command: >-
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf
+    get storageclass {{ minio_effective_storage_class }} -o name
+  register: minio_storage_class_verify
+  changed_when: false
+  when: inventory_hostname == first_cp
+
+- name: Detect existing MinIO statefulset
+  ansible.builtin.command: >-
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf -n {{ minio_namespace }}
+    get statefulset/{{ minio_release_name }} -o name --ignore-not-found
+  register: minio_existing_sts_resource
+  changed_when: false
+  failed_when: false
+  when: inventory_hostname == first_cp
+
+- name: Read existing MinIO statefulset storage class
+  ansible.builtin.command: >-
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf -n {{ minio_namespace }}
+    get statefulset/{{ minio_release_name }}
+    -o jsonpath={.spec.volumeClaimTemplates[0].spec.storageClassName}
+  register: minio_existing_sts_storage_class_raw
+  changed_when: false
+  when:
+  - inventory_hostname == first_cp
+  - minio_existing_sts_resource.stdout | trim | length > 0
+
+- name: Determine whether existing MinIO storage class is incompatible
+  ansible.builtin.set_fact:
+    minio_existing_sts_storage_class: "{{ minio_existing_sts_storage_class_raw.stdout | default('') | trim }}"
+    minio_storage_class_mismatch: >-
+      {{
+        (minio_existing_sts_resource.stdout | trim | length > 0)
+        and (
+          (minio_existing_sts_storage_class_raw.stdout | default('') | trim)
+          != (minio_effective_storage_class | trim)
+        )
+      }}
+  when: inventory_hostname == first_cp
+
+- name: Abort when existing MinIO release uses different storage class
+  ansible.builtin.fail:
+    msg: >-
+      Existing MinIO StatefulSet uses storageClass='{{ minio_existing_sts_storage_class | default('') }}'
+      but requested is '{{ minio_effective_storage_class }}'.
+      Set minio_force_reinstall_on_storage_class_mismatch=true to recreate MinIO, or
+      manually uninstall release '{{ minio_release_name }}' and delete old PVCs before rerun.
+  when:
+  - inventory_hostname == first_cp
+  - minio_storage_class_mismatch | default(false)
+  - not minio_force_reinstall_on_storage_class_mismatch
+
+- name: Uninstall existing MinIO release on storage class mismatch
+  ansible.builtin.command: >-
+    helm uninstall {{ minio_release_name }} --namespace {{ minio_namespace }}
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: minio_force_uninstall
+  changed_when: "'uninstalled' in minio_force_uninstall.stdout"
+  failed_when: minio_force_uninstall.rc != 0
+  when:
+  - inventory_hostname == first_cp
+  - minio_storage_class_mismatch | default(false)
+  - minio_force_reinstall_on_storage_class_mismatch
+
+- name: Delete old MinIO PVCs after forced uninstall
+  ansible.builtin.command: >-
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf -n {{ minio_namespace }}
+    delete pvc -l app=minio --ignore-not-found=true
+  register: minio_force_delete_pvcs
+  changed_when: "'deleted' in minio_force_delete_pvcs.stdout"
+  when:
+  - inventory_hostname == first_cp
+  - minio_storage_class_mismatch | default(false)
+  - minio_force_reinstall_on_storage_class_mismatch
+
+- name: Wait until old MinIO PVCs are removed
+  ansible.builtin.command: >-
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf -n {{ minio_namespace }}
+    get pvc -l app=minio -o name
+  register: minio_force_remaining_pvcs
+  changed_when: false
+  retries: 20
+  delay: 6
+  until: minio_force_remaining_pvcs.stdout | trim | length == 0
+  when:
+  - inventory_hostname == first_cp
+  - minio_storage_class_mismatch | default(false)
+  - minio_force_reinstall_on_storage_class_mismatch
+
+- name: Detect MinIO PVCs without storage class
+  ansible.builtin.shell: >-
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf -n {{ minio_namespace }}
+    get pvc -l app=minio -o jsonpath='{range .items[*]}{.metadata.name}{"|"}{.spec.storageClassName}{"\n"}{end}'
+    | awk -F'|' '$2=="" {print $1}'
+  register: minio_pvcs_without_sc
+  changed_when: false
+  failed_when: false
+  when: inventory_hostname == first_cp
+
+- name: Abort when MinIO PVCs without storage class are found
+  ansible.builtin.fail:
+    msg: >-
+      Found MinIO PVC(s) without storageClass: {{ minio_pvcs_without_sc.stdout_lines | join(', ') }}.
+      This usually comes from an old release created before storage class config.
+      Set minio_force_reinstall_on_storage_class_mismatch=true to recreate MinIO and delete stale PVCs.
+  when:
+  - inventory_hostname == first_cp
+  - minio_pvcs_without_sc.stdout | trim | length > 0
+  - not minio_force_reinstall_on_storage_class_mismatch
+
+- name: Uninstall MinIO release when stale PVCs are found and force reinstall is enabled
+  ansible.builtin.command: >-
+    helm uninstall {{ minio_release_name }} --namespace {{ minio_namespace }}
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: minio_force_uninstall_stale_pvcs
+  changed_when: "'uninstalled' in minio_force_uninstall_stale_pvcs.stdout"
+  failed_when: false
+  when:
+  - inventory_hostname == first_cp
+  - minio_pvcs_without_sc.stdout | trim | length > 0
+  - minio_force_reinstall_on_storage_class_mismatch
+
+- name: Delete stale MinIO PVCs without storage class
+  ansible.builtin.command: >-
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf -n {{ minio_namespace }}
+    delete pvc/{{ item }} --ignore-not-found=true
+  register: minio_force_delete_stale_pvc_item
+  changed_when: "'deleted' in minio_force_delete_stale_pvc_item.stdout"
+  loop: "{{ minio_pvcs_without_sc.stdout_lines }}"
+  when:
+  - inventory_hostname == first_cp
+  - minio_pvcs_without_sc.stdout | trim | length > 0
+  - minio_force_reinstall_on_storage_class_mismatch
+
+- name: Wait until stale MinIO PVCs are removed
+  ansible.builtin.shell: >-
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf -n {{ minio_namespace }}
+    get pvc -l app=minio -o jsonpath='{range .items[*]}{.metadata.name}{"|"}{.spec.storageClassName}{"\n"}{end}'
+    | awk -F'|' '$2=="" {print $1}'
+  register: minio_remaining_stale_pvcs
+  changed_when: false
+  retries: 20
+  delay: 6
+  until: minio_remaining_stale_pvcs.stdout | trim | length == 0
+  when:
+  - inventory_hostname == first_cp
+  - minio_pvcs_without_sc.stdout | trim | length > 0
+  - minio_force_reinstall_on_storage_class_mismatch
+
+- name: Add or update MinIO Helm repository
+  ansible.builtin.command: >-
+    helm repo add {{ minio_repo_name }} {{ minio_repo_url }} --force-update
+  register: minio_repo_add
+  changed_when: >-
+    'has been added' in minio_repo_add.stdout
+    or 'has been updated' in minio_repo_add.stdout
+  when: inventory_hostname == first_cp
+
+- name: Update Helm repository index for MinIO chart
+  ansible.builtin.command: helm repo update {{ minio_repo_name }}
+  register: minio_repo_update
+  changed_when: false
+  when: inventory_hostname == first_cp
+
+- name: Render MinIO values file
+  ansible.builtin.template:
+    src: minio-values.yaml.j2
+    dest: /root/minio-values.yaml
+    mode: "0600"
+  when: inventory_hostname == first_cp
+
+- name: Install or upgrade MinIO
+  ansible.builtin.command: >-
+    helm upgrade --install {{ minio_release_name }} {{ minio_chart_ref }}
+    --namespace {{ minio_namespace }}
+    --create-namespace
+    --version {{ minio_chart_version }}
+    -f /root/minio-values.yaml
+    --wait
+    --timeout {{ minio_helm_timeout }}
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: minio_install
+  changed_when: >-
+    'has been installed' in minio_install.stdout
+    or 'has been upgraded' in minio_install.stdout
+  when: inventory_hostname == first_cp
+
+- name: Detect MinIO deployment resource
+  ansible.builtin.command: >-
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf -n {{ minio_namespace }}
+    get deployment/{{ minio_release_name }} -o name --ignore-not-found
+  register: minio_deployment_resource
+  changed_when: false
+  when: inventory_hostname == first_cp
+
+- name: Detect MinIO statefulset resource
+  ansible.builtin.command: >-
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf -n {{ minio_namespace }}
+    get statefulset/{{ minio_release_name }} -o name --ignore-not-found
+  register: minio_statefulset_resource
+  changed_when: false
+  when: inventory_hostname == first_cp
+
+- name: Wait for MinIO deployment rollout
+  ansible.builtin.command: >-
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf -n {{ minio_namespace }}
+    rollout status deployment/{{ minio_release_name }}
+    --timeout={{ minio_rollout_timeout }}
+  register: minio_deployment_rollout
+  changed_when: false
+  when:
+  - inventory_hostname == first_cp
+  - minio_deployment_resource.stdout | trim | length > 0
+
+- name: Wait for MinIO statefulset rollout
+  ansible.builtin.command: >-
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf -n {{ minio_namespace }}
+    rollout status statefulset/{{ minio_release_name }}
+    --timeout={{ minio_rollout_timeout }}
+  register: minio_statefulset_rollout
+  changed_when: false
+  when:
+  - inventory_hostname == first_cp
+  - minio_statefulset_resource.stdout | trim | length > 0
+
+- name: Show MinIO services
+  ansible.builtin.command: >-
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf -n {{ minio_namespace }}
+    get svc -l app=minio -o wide
+  register: minio_services
+  changed_when: false
+  when: inventory_hostname == first_cp
+
+- name: Show MinIO service output
+  ansible.builtin.debug:
+    var: minio_services.stdout_lines
+  when: inventory_hostname == first_cp
+
+- name: Show MinIO pods with node placement
+  ansible.builtin.command: >-
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf -n {{ minio_namespace }}
+    get pods -l app=minio -o wide
+  register: minio_pods
+  changed_when: false
+  when: inventory_hostname == first_cp
+
+- name: Show MinIO pod output
+  ansible.builtin.debug:
+    var: minio_pods.stdout_lines
+  when: inventory_hostname == first_cp
+
+- name: Show MinIO ingress resources
+  ansible.builtin.command: >-
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf -n {{ minio_namespace }}
+    get ingress -o wide
+  register: minio_ingress
+  changed_when: false
+  when:
+  - inventory_hostname == first_cp
+  - minio_ingress_enabled or minio_console_ingress_enabled
+
+- name: Show MinIO ingress output
+  ansible.builtin.debug:
+    var: minio_ingress.stdout_lines
+  when:
+  - inventory_hostname == first_cp
+  - minio_ingress_enabled or minio_console_ingress_enabled

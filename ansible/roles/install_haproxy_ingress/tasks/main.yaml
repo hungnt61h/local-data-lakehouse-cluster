@@ -1,0 +1,85 @@
+- name: Ensure helm is available
+  ansible.builtin.command: helm version --short
+  register: haproxy_ingress_helm_version
+  changed_when: false
+  when: inventory_hostname == first_cp
+
+- name: Ensure kubectl is available
+  ansible.builtin.command: kubectl version --client
+  register: haproxy_ingress_kubectl_version
+  changed_when: false
+  when: inventory_hostname == first_cp
+
+- name: Add or update HAProxy Helm repository
+  ansible.builtin.command: >-
+    helm repo add {{ haproxy_ingress_repo_name }} {{ haproxy_ingress_repo_url }} --force-update
+  register: haproxy_ingress_repo_add
+  changed_when: >-
+    'has been added' in haproxy_ingress_repo_add.stdout
+    or 'has been updated' in haproxy_ingress_repo_add.stdout
+  when: inventory_hostname == first_cp
+
+- name: Update Helm repository index for HAProxy chart
+  ansible.builtin.command: helm repo update {{ haproxy_ingress_repo_name }}
+  register: haproxy_ingress_repo_update
+  changed_when: false
+  when: inventory_hostname == first_cp
+
+- name: Render HAProxy ingress values file
+  ansible.builtin.template:
+    src: haproxy-ingress-values.yaml.j2
+    dest: /root/haproxy-ingress-values.yaml
+    mode: "0600"
+  when: inventory_hostname == first_cp
+
+- name: Install or upgrade HAProxy ingress controller
+  ansible.builtin.command: >-
+    helm upgrade --install {{ haproxy_ingress_release_name }} {{ haproxy_ingress_chart_ref }}
+    --namespace {{ haproxy_ingress_namespace }}
+    --create-namespace
+    -f /root/haproxy-ingress-values.yaml
+    --wait
+    --timeout {{ haproxy_ingress_helm_timeout }}
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: haproxy_ingress_install
+  changed_when: >-
+    'has been installed' in haproxy_ingress_install.stdout
+    or 'has been upgraded' in haproxy_ingress_install.stdout
+  when: inventory_hostname == first_cp
+
+- name: Wait for HAProxy ingress deployment rollout
+  ansible.builtin.command: >-
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf -n {{ haproxy_ingress_namespace }}
+    rollout status deployment/{{ haproxy_ingress_release_name }}-kubernetes-ingress
+    --timeout={{ haproxy_ingress_rollout_timeout }}
+  register: haproxy_ingress_rollout
+  changed_when: false
+  when: inventory_hostname == first_cp
+
+- name: Wait for HAProxy ingress service LoadBalancer IP assignment
+  ansible.builtin.command: >-
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf -n {{ haproxy_ingress_namespace }}
+    get service {{ haproxy_ingress_release_name }}-kubernetes-ingress
+    -o jsonpath={.status.loadBalancer.ingress[0].ip}
+  register: haproxy_ingress_lb_ip
+  changed_when: false
+  retries: 30
+  delay: 10
+  until: haproxy_ingress_lb_ip.stdout | trim | length > 0
+  when:
+  - inventory_hostname == first_cp
+  - haproxy_ingress_service_type == "LoadBalancer"
+
+- name: Show HAProxy ingress service details
+  ansible.builtin.command: >-
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf -n {{ haproxy_ingress_namespace }}
+    get svc {{ haproxy_ingress_release_name }}-kubernetes-ingress -o wide
+  register: haproxy_ingress_service
+  changed_when: false
+  when: inventory_hostname == first_cp
+
+- name: Show HAProxy ingress service output
+  ansible.builtin.debug:
+    var: haproxy_ingress_service.stdout_lines
+  when: inventory_hostname == first_cp

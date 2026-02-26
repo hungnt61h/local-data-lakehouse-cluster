@@ -1,0 +1,331 @@
+- name: Validate kube-vip interface exists on control planes
+  ansible.builtin.assert:
+    that:
+    - vip_interface in ansible_interfaces
+    fail_msg: >-
+      vip_interface '{{ vip_interface }}' does not exist on {{ inventory_hostname }}.
+      Detected interfaces: {{ ansible_interfaces | join(', ') }}
+  when: inventory_hostname in groups['control_plane']
+
+- name: Ensure kube-vip manifests directory exists on control planes
+  ansible.builtin.file:
+    path: /etc/kubernetes/manifests
+    state: directory
+    mode: "0755"
+  when: inventory_hostname in groups['control_plane']
+
+- name: Install kube-vip static pod manifest on control planes
+  ansible.builtin.template:
+    src: kube-vip.yaml.j2
+    dest: /etc/kubernetes/manifests/kube-vip.yaml
+    mode: "0644"
+  when: inventory_hostname in groups['control_plane']
+
+- name: Restart kubelet
+  ansible.builtin.service:
+    name: kubelet
+    state: restarted
+    enabled: true
+
+- name: Render kubeadm config on first control-plane
+  ansible.builtin.template:
+    src: kubeadm-config.yaml.j2
+    dest: /root/kubeadm-config.yaml
+    mode: "0600"
+  when: inventory_hostname == first_cp
+
+- name: Initialize cluster on first control-plane (idempotent)
+  ansible.builtin.command: >
+    kubeadm init
+    --config /root/kubeadm-config.yaml
+    --upload-certs
+  args:
+    creates: /etc/kubernetes/admin.conf
+  register: kubeadm_init
+  when: inventory_hostname == first_cp
+
+- name: Create .kube on first control-plane
+  ansible.builtin.file:
+    path: /root/.kube
+    state: directory
+    mode: "0700"
+  when: inventory_hostname == first_cp
+
+- name: Copy admin.conf to kubectl config on first control-plane
+  ansible.builtin.copy:
+    src: /etc/kubernetes/admin.conf
+    dest: /root/.kube/config
+    remote_src: true
+    mode: "0600"
+  when: inventory_hostname == first_cp
+
+- name: Ensure kubeadm bootstrap-token phase is present
+  ansible.builtin.command: kubeadm init phase bootstrap-token
+  environment:
+    KUBECONFIG: /etc/kubernetes/super-admin.conf
+  register: kubeadm_bootstrap_phase
+  changed_when: false
+  retries: 10
+  delay: 6
+  until: kubeadm_bootstrap_phase.rc == 0
+  when: inventory_hostname == first_cp
+
+- name: Re-upload kubeadm ClusterConfiguration ConfigMap
+  ansible.builtin.command: >-
+    kubeadm init phase upload-config kubeadm --config /root/kubeadm-config.yaml
+  environment:
+    KUBECONFIG: /etc/kubernetes/super-admin.conf
+  register: kubeadm_upload_config
+  changed_when: false
+  retries: 10
+  delay: 6
+  until: kubeadm_upload_config.rc == 0
+  when: inventory_hostname == first_cp
+
+- name: Re-upload kubelet configuration ConfigMap
+  ansible.builtin.command: >-
+    kubeadm init phase upload-config kubelet --config /root/kubeadm-config.yaml
+  environment:
+    KUBECONFIG: /etc/kubernetes/super-admin.conf
+  register: kubelet_upload_config
+  changed_when: false
+  retries: 10
+  delay: 6
+  until: kubelet_upload_config.rc == 0
+  when: inventory_hostname == first_cp
+
+- name: Ensure kube-proxy addon is installed
+  ansible.builtin.command: >-
+    kubeadm init phase addon kube-proxy --config /root/kubeadm-config.yaml
+  environment:
+    KUBECONFIG: /etc/kubernetes/super-admin.conf
+  register: kube_proxy_addon
+  changed_when: false
+  retries: 10
+  delay: 6
+  until: kube_proxy_addon.rc == 0
+  when: inventory_hostname == first_cp
+
+- name: Wait for kube-proxy ConfigMap
+  ansible.builtin.command: >-
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf -n kube-system
+    get configmap kube-proxy
+  register: kube_proxy_cm
+  changed_when: false
+  retries: 30
+  delay: 5
+  until: kube_proxy_cm.rc == 0
+  when: inventory_hostname == first_cp
+
+- name: Wait for kube-proxy daemonset rollout
+  ansible.builtin.command: >-
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf -n kube-system
+    rollout status daemonset/kube-proxy --timeout=10m
+  register: kube_proxy_rollout
+  changed_when: false
+  retries: 3
+  delay: 10
+  until: kube_proxy_rollout.rc == 0
+  when: inventory_hostname == first_cp
+
+- name: Wait for Kubernetes service VIP reachability
+  ansible.builtin.command: >-
+    curl -kfsS --connect-timeout 5 https://{{ k8s_vip_service_ip }}:443/livez
+  register: kube_service_vip_reachable
+  changed_when: false
+  retries: 30
+  delay: 5
+  until: kube_service_vip_reachable.rc == 0
+  when: inventory_hostname == first_cp
+
+- name: Render kubeadm bootstrap-token RBAC manifest
+  ansible.builtin.template:
+    src: kubeadm-bootstrap-token-rbac.yaml.j2
+    dest: /root/kubeadm-bootstrap-token-rbac.yaml
+    mode: "0600"
+  when: inventory_hostname == first_cp
+
+- name: Ensure bootstrap tokens can read kube-system configmaps required by join
+  ansible.builtin.command: kubectl apply -f /root/kubeadm-bootstrap-token-rbac.yaml
+  environment:
+    KUBECONFIG: /etc/kubernetes/super-admin.conf
+  register: kubeadm_config_rbac_fix
+  changed_when: >-
+    'configured' in kubeadm_config_rbac_fix.stdout
+    or 'created' in kubeadm_config_rbac_fix.stdout
+  when: inventory_hostname == first_cp
+
+- name: Probe anonymous access to kube-public/cluster-info
+  ansible.builtin.uri:
+    url: "https://{{ k8s_vip }}:6443/api/v1/namespaces/kube-public/configmaps/cluster-info"
+    method: GET
+    validate_certs: false
+    return_content: true
+    status_code: [200, 401, 403]
+  register: cluster_info_probe
+  changed_when: false
+  when: inventory_hostname == first_cp
+
+- name: Render kubeadm bootstrap discovery RBAC manifest
+  ansible.builtin.template:
+    src: kubeadm-bootstrap-discovery-rbac.yaml.j2
+    dest: /root/kubeadm-bootstrap-discovery-rbac.yaml
+    mode: "0600"
+  when:
+    - inventory_hostname == first_cp
+    - cluster_info_probe.status != 200
+
+- name: Restore bootstrap discovery RBAC for cluster-info
+  ansible.builtin.command: kubectl apply -f /root/kubeadm-bootstrap-discovery-rbac.yaml
+  environment:
+    KUBECONFIG: /etc/kubernetes/super-admin.conf
+  register: cluster_info_rbac_fix
+  changed_when: >-
+    'configured' in cluster_info_rbac_fix.stdout
+    or 'created' in cluster_info_rbac_fix.stdout
+  when:
+    - inventory_hostname == first_cp
+    - cluster_info_probe.status != 200
+
+- name: Recheck anonymous access to kube-public/cluster-info
+  ansible.builtin.uri:
+    url: "https://{{ k8s_vip }}:6443/api/v1/namespaces/kube-public/configmaps/cluster-info"
+    method: GET
+    validate_certs: false
+    return_content: true
+    status_code: [200, 401, 403]
+  register: cluster_info_probe_verify
+  changed_when: false
+  when: inventory_hostname == first_cp
+
+- name: Fail when cluster-info is still not anonymously reachable
+  ansible.builtin.fail:
+    msg: >-
+      Anonymous GET of kube-public/cluster-info still fails with HTTP
+      {{ cluster_info_probe_verify.status }}.
+      Response snippet: {{
+      (cluster_info_probe_verify.content | default('') | regex_replace('\n', ' '))
+      [:220]
+      }}
+  when:
+    - inventory_hostname == first_cp
+    - cluster_info_probe_verify.status != 200
+
+- name: Get SHA256 discovery hash from cluster CA
+  ansible.builtin.shell: |
+    openssl x509 -pubkey -in /etc/kubernetes/pki/ca.crt \
+      | openssl rsa -pubin -outform der 2>/dev/null \
+      | openssl dgst -sha256 -hex \
+      | awk '{print $2}'
+  register: ca_cert_hash
+  changed_when: false
+  when: inventory_hostname == first_cp
+
+- name: Get bootstrap token
+  ansible.builtin.command: >-
+    kubeadm token create
+    --ttl 2h
+    --usages signing,authentication
+    --groups system:bootstrappers:kubeadm:default-node-token
+  environment:
+    KUBECONFIG: /etc/kubernetes/super-admin.conf
+  register: bootstrap_token
+  changed_when: false
+  retries: 15
+  delay: 8
+  until:
+    - bootstrap_token.rc == 0
+    - bootstrap_token.stdout | trim | length > 0
+  when: inventory_hostname == first_cp
+
+- name: Verify bootstrap token can read kube-system configmaps required by join
+  ansible.builtin.uri:
+    url: "https://{{ k8s_vip }}:6443/api/v1/namespaces/kube-system/configmaps/{{ item }}"
+    method: GET
+    validate_certs: false
+    return_content: true
+    status_code: [200, 401, 403]
+    headers:
+      Authorization: "Bearer {{ bootstrap_token.stdout | trim }}"
+  loop:
+    - kubeadm-config
+    - kubelet-config
+  loop_control:
+    label: "{{ item }}"
+  register: kube_system_config_probes
+  changed_when: false
+  when: inventory_hostname == first_cp
+
+- name: Collect denied kube-system configmaps for bootstrap token
+  ansible.builtin.set_fact:
+    denied_kube_system_configmaps: >-
+      {{
+        kube_system_config_probes.results
+        | rejectattr('status', 'equalto', 200)
+        | map(attribute='item')
+        | list
+      }}
+  when: inventory_hostname == first_cp
+
+- name: Fail when bootstrap token cannot read required kube-system configmaps
+  ansible.builtin.fail:
+    msg: >-
+      Bootstrap token cannot read required kube-system ConfigMaps:
+      {{ denied_kube_system_configmaps | join(', ') }}.
+  when:
+    - inventory_hostname == first_cp
+    - denied_kube_system_configmaps | length > 0
+
+- name: Get certificate key (for joining other control planes)
+  ansible.builtin.shell: |
+    set -o pipefail
+    kubeadm init phase upload-certs --upload-certs | tail -n 1
+  args:
+    executable: /bin/bash
+  environment:
+    KUBECONFIG: /etc/kubernetes/super-admin.conf
+  register: cert_key
+  changed_when: false
+  retries: 15
+  delay: 8
+  until:
+    - cert_key.rc == 0
+    - cert_key.stdout | trim | length > 0
+  when: inventory_hostname == first_cp
+
+- name: Wait until API endpoint is reachable on VIP
+  ansible.builtin.wait_for:
+    host: "{{ k8s_vip }}"
+    port: 6443
+    timeout: 180
+  when: inventory_hostname == first_cp
+
+- name: Set join commands as facts (run once)
+  ansible.builtin.set_fact:
+    join_cp_cmd: >-
+      kubeadm join {{ k8s_vip }}:6443
+      --token {{ bootstrap_token.stdout | trim }}
+      --discovery-token-ca-cert-hash sha256:{{ ca_cert_hash.stdout | trim }}
+      --control-plane
+      --certificate-key {{ cert_key.stdout | trim }}
+      --cri-socket unix:///run/containerd/containerd.sock
+    join_worker_cmd: >-
+      kubeadm join {{ k8s_vip }}:6443
+      --token {{ bootstrap_token.stdout | trim }}
+      --discovery-token-ca-cert-hash sha256:{{ ca_cert_hash.stdout | trim }}
+      --cri-socket unix:///run/containerd/containerd.sock
+  when: inventory_hostname == first_cp
+
+- name: Join other control-plane nodes
+  ansible.builtin.command: "{{ hostvars[first_cp].join_cp_cmd }}"
+  args:
+    creates: /etc/kubernetes/kubelet.conf
+  when:
+    - inventory_hostname in groups['control_plane']
+    - inventory_hostname != first_cp
+
+- name: Join worker nodes
+  ansible.builtin.command: "{{ hostvars[first_cp].join_worker_cmd }}"
+  args:
+    creates: /etc/kubernetes/kubelet.conf
+  when: inventory_hostname in groups['workers']

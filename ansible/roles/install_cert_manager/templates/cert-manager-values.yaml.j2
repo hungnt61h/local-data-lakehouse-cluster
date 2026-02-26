@@ -1,0 +1,13 @@
+crds:
+  enabled: {{ 'true' if cert_manager_crds_enabled else 'false' }}
+
+replicaCount: {{ cert_manager_replica_count }}
+
+prometheus:
+  enabled: {{ 'true' if cert_manager_prometheus_enabled else 'false' }}
+
+webhook:
+  replicaCount: {{ cert_manager_webhook_replica_count }}
+
+cainjector:
+  replicaCount: {{ cert_manager_cainjector_replica_count }}

@@ -1,0 +1,151 @@
+{% set minio_conn_uri = 'aws://' ~ (airflow_minio_access_key | urlencode) ~ ':' ~ (airflow_minio_secret_key | urlencode) ~ '@/?endpoint_url=' ~ (airflow_minio_endpoint_url | urlencode) ~ '&region_name=' ~ (airflow_minio_region | urlencode) ~ '&verify=' ~ ('true' if airflow_minio_verify_tls else 'false') %}
+{% set remote_log_base = 's3://' ~ airflow_minio_logs_bucket ~ (('/' ~ airflow_minio_logs_prefix) if (airflow_minio_logs_prefix | trim | length > 0) else '') %}
+defaultAirflowRepository: {{ airflow_image_repository }}
+defaultAirflowTag: {{ airflow_image_tag | quote }}
+airflowVersion: {{ airflow_version | quote }}
+images:
+  airflow:
+    repository: {{ airflow_image_repository }}
+    tag: {{ airflow_image_tag }}
+    pullPolicy: IfNotPresent
+  migrationsWaitTimeout: 120
+
+executor: {{ airflow_executor | quote }}
+allowPodLaunching: true
+multiNamespaceMode: false
+
+apiServer:
+  enabled: true
+  replicas: 1
+
+databaseCleanup:
+  enabled: true
+  retentionDays: 7
+
+redis:
+  enabled: false
+
+statsd:
+  enabled: true
+
+# Airflow 3 uses apiServer for the web/API endpoint.
+webserver:
+  enabled: false
+
+scheduler:
+  replicas: {{ airflow_scheduler_replicas }}
+  safeToEvict: true
+
+workers:
+  replicas: {{ airflow_workers_replicas }}
+  safeToEvict: true
+  persistence:
+    enabled: false
+  celery:
+    replicas: {{ airflow_workers_replicas }}
+    persistence:
+      enabled: false
+
+triggerer:
+  persistence:
+    enabled: false
+
+flower:
+  enabled: false
+
+dagProcessor:
+  enabled: true
+  replicas: {{ airflow_dag_processor_replicas }}
+  dagBundleConfigList:
+  - name: minio-dags
+    classpath: airflow.providers.amazon.aws.bundles.s3.S3DagBundle
+    kwargs:
+      aws_conn_id: {{ airflow_minio_connection_id | quote }}
+      bucket_name: {{ airflow_minio_dags_bucket | quote }}
+{% if airflow_minio_dags_prefix | trim | length > 0 %}
+      prefix: {{ airflow_minio_dags_prefix | quote }}
+{% endif %}
+
+createUserJob:
+  enabled: {{ 'true' if airflow_create_user_enabled else 'false' }}
+  useHelmHooks: {{ 'true' if airflow_create_user_use_helm_hooks else 'false' }}
+  defaultUser:
+    role: {{ airflow_admin_role | quote }}
+    username: {{ airflow_admin_username | quote }}
+    email: {{ airflow_admin_email | quote }}
+    firstName: {{ airflow_admin_first_name | quote }}
+    lastName: {{ airflow_admin_last_name | quote }}
+    password: {{ airflow_admin_password | quote }}
+
+migrateDatabaseJob:
+  enabled: true
+  useHelmHooks: {{ 'true' if airflow_migrate_database_use_helm_hooks else 'false' }}
+  applyCustomEnv: {{ 'true' if airflow_migrate_database_apply_custom_env else 'false' }}
+
+postgresql:
+  enabled: {{ 'true' if airflow_postgresql_enabled else 'false' }}
+  primary:
+    persistence:
+      enabled: true
+      size: {{ airflow_postgresql_storage_size }}
+      storageClass: {{ airflow_postgresql_storage_class | quote }}
+{% if airflow_create_static_pv_pvc | bool %}
+      existingClaim: {{ airflow_postgresql_pvc_name | quote }}
+{% endif %}
+
+dags:
+  persistence:
+    enabled: {{ 'true' if airflow_dags_persistence_enabled else 'false' }}
+
+logs:
+  persistence:
+    enabled: {{ 'true' if airflow_logs_persistence_enabled else 'false' }}
+    storageClassName: {{ airflow_logs_storage_class | quote }}
+
+ingress:
+  apiServer:
+    enabled: {{ 'true' if airflow_ingress_enabled else 'false' }}
+    ingressClassName: {{ airflow_ingress_class_name | quote }}
+    path: {{ airflow_ingress_path }}
+    pathType: {{ airflow_ingress_path_type }}
+{% if airflow_ingress_annotations | length > 0 %}
+    annotations:
+{% for annotation_key, annotation_value in airflow_ingress_annotations.items() %}
+      {{ annotation_key }}: {{ annotation_value | quote }}
+{% endfor %}
+{% else %}
+    annotations: {}
+{% endif %}
+    hosts:
+    - name: {{ airflow_ingress_host | quote }}
+{% if airflow_ingress_tls_enabled %}
+      tls:
+        enabled: true
+        secretName: {{ airflow_ingress_tls_secret_name | quote }}
+{% endif %}
+
+secret:
+- envName: {{ airflow_minio_connection_env | quote }}
+  secretName: {{ airflow_minio_connection_secret_name | quote }}
+  secretKey: {{ airflow_minio_connection_secret_key | quote }}
+
+extraSecrets:
+  {{ airflow_minio_connection_secret_name }}:
+    type: Opaque
+    stringData: |
+      {{ airflow_minio_connection_secret_key }}: {{ minio_conn_uri | quote }}
+
+env:
+- name: AIRFLOW__CORE__LOAD_EXAMPLES
+  value: "False"
+- name: AIRFLOW__LOGGING__REMOTE_LOGGING
+  value: "True"
+
+config:
+  core:
+    load_examples: "False"
+  logging:
+    remote_logging: "True"
+    remote_log_conn_id: {{ airflow_minio_connection_id | quote }}
+    remote_base_log_folder: {{ remote_log_base | quote }}
+    encrypt_s3_logs: "False"

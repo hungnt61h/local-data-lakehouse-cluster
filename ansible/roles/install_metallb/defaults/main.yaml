@@ -1,0 +1,17 @@
+metallb_release_name: metallb
+metallb_namespace: metallb-system
+
+metallb_repo_name: metallb
+metallb_repo_url: https://metallb.github.io/metallb
+metallb_chart_ref: metallb/metallb
+
+metallb_helm_timeout: 10m
+metallb_rollout_timeout: 10m
+
+metallb_ipaddresspool_name: default-pool
+metallb_l2advertisement_name: default-advertisement
+metallb_ip_address_ranges:
+  - "192.168.0.200-192.168.0.250"
+metallb_pool_auto_assign: true
+metallb_pool_avoid_buggy_ips: false
+metallb_l2_advertisement_interfaces: []

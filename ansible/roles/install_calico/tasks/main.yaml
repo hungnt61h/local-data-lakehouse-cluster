@@ -1,0 +1,73 @@
+- name: Install Calico (tigera operator)
+  ansible.builtin.shell: |
+    kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/{{ calico_version }}/manifests/tigera-operator.yaml
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: calico_operator_apply
+  retries: 6
+  delay: 10
+  until: calico_operator_apply.rc == 0
+  when: inventory_hostname == first_cp
+
+- name: Install Calico operator CRDs explicitly
+  ansible.builtin.shell: |
+    kubectl apply --server-side --force-conflicts -f https://raw.githubusercontent.com/projectcalico/calico/{{ calico_version }}/manifests/operator-crds.yaml
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: calico_crds_apply
+  retries: 6
+  delay: 10
+  until: calico_crds_apply.rc == 0
+  when: inventory_hostname == first_cp
+
+- name: Wait for Tigera CRDs to be registered
+  ansible.builtin.command: |
+    kubectl get crd installations.operator.tigera.io
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: tigera_crds_ready
+  changed_when: false
+  retries: 36
+  delay: 5
+  until: tigera_crds_ready.rc == 0
+  when: inventory_hostname == first_cp
+
+- name: Render Calico installation custom resource manifest
+  ansible.builtin.template:
+    src: calico-installation.yaml.j2
+    dest: /root/calico-installation.yaml
+    mode: "0600"
+  when: inventory_hostname == first_cp
+
+- name: Install Calico custom resources (pod CIDR)
+  ansible.builtin.command: kubectl apply -f /root/calico-installation.yaml
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: calico_cr_apply
+  retries: 10
+  delay: 5
+  until: calico_cr_apply.rc == 0
+  when: inventory_hostname == first_cp
+
+- name: Wait for all nodes Ready
+  ansible.builtin.command: |
+    kubectl wait --for=condition=Ready nodes --all --timeout=5m
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: nodes_ready_wait
+  changed_when: false
+  when: inventory_hostname == first_cp
+
+- name: Show nodes
+  ansible.builtin.command: |
+    kubectl get nodes -o wide
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: nodes_out
+  changed_when: false
+  when: inventory_hostname == first_cp
+
+- name: Show node status lines
+  ansible.builtin.debug:
+    var: nodes_out.stdout_lines
+  when: inventory_hostname == first_cp
