@@ -1,6 +1,6 @@
-<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36" version="29.5.6">
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36" version="29.6.0">
   <diagram name="Page-1" id="AqTttQzdxG0LyJnQRlus">
-    <mxGraphModel dx="1033" dy="552" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+    <mxGraphModel dx="2583" dy="1379" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -501,38 +501,38 @@
             <mxPoint x="1" y="8" as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="dfM-ySF2d0wptdbFrbN6-26" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontFamily=Comic Sans MS;fontSize=14;fontStyle=1;shadow=0;glass=0;" value="Data sources" vertex="1">
-          <mxGeometry height="30" width="100" x="20" y="110" as="geometry" />
+        <mxCell id="dfM-ySF2d0wptdbFrbN6-26" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontFamily=Comic Sans MS;fontSize=16;fontStyle=1;shadow=0;glass=0;" value="Data sources" vertex="1">
+          <mxGeometry height="30" width="110" x="20" y="110" as="geometry" />
         </mxCell>
-        <mxCell id="dfM-ySF2d0wptdbFrbN6-27" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontFamily=Comic Sans MS;fontSize=14;fontStyle=1" value="Message Queue" vertex="1">
-          <mxGeometry height="30" width="110" x="320" y="202.5" as="geometry" />
+        <mxCell id="dfM-ySF2d0wptdbFrbN6-27" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontFamily=Comic Sans MS;fontSize=16;fontStyle=1" value="Message Queue" vertex="1">
+          <mxGeometry height="30" width="130" x="320" y="202.5" as="geometry" />
         </mxCell>
-        <mxCell id="dfM-ySF2d0wptdbFrbN6-28" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontFamily=Comic Sans MS;fontSize=14;fontStyle=1" value="Monitoring &amp;amp; Alert" vertex="1">
-          <mxGeometry height="30" width="140" x="320" as="geometry" />
+        <mxCell id="dfM-ySF2d0wptdbFrbN6-28" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontFamily=Comic Sans MS;fontSize=16;fontStyle=1" value="Monitoring &amp;amp; Alert" vertex="1">
+          <mxGeometry height="30" width="160" x="320" as="geometry" />
         </mxCell>
-        <mxCell id="dfM-ySF2d0wptdbFrbN6-29" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontFamily=Comic Sans MS;fontSize=14;fontStyle=1" value="Batch/Stream" vertex="1">
+        <mxCell id="dfM-ySF2d0wptdbFrbN6-29" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontFamily=Comic Sans MS;fontSize=16;fontStyle=1" value="Batch/Stream" vertex="1">
           <mxGeometry height="30" width="120" x="689.25" y="190" as="geometry" />
         </mxCell>
-        <mxCell id="dfM-ySF2d0wptdbFrbN6-30" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontFamily=Comic Sans MS;fontSize=14;fontStyle=1" value="Orchestration" vertex="1">
+        <mxCell id="dfM-ySF2d0wptdbFrbN6-30" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontFamily=Comic Sans MS;fontSize=16;fontStyle=1" value="Orchestration" vertex="1">
           <mxGeometry height="30" width="120" x="1153.67" y="768.12" as="geometry" />
         </mxCell>
-        <mxCell id="dfM-ySF2d0wptdbFrbN6-31" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontFamily=Comic Sans MS;fontSize=14;fontStyle=1;rotation=90;" value="Authentication &amp;amp; Authorization" vertex="1">
-          <mxGeometry height="30" width="230" x="1660" y="130" as="geometry" />
+        <mxCell id="dfM-ySF2d0wptdbFrbN6-31" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontFamily=Comic Sans MS;fontSize=16;fontStyle=1;rotation=90;" value="Authentication &amp;amp; Authorization" vertex="1">
+          <mxGeometry height="30" width="245" x="1652.5" y="137.5" as="geometry" />
         </mxCell>
-        <mxCell id="dfM-ySF2d0wptdbFrbN6-32" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontFamily=Comic Sans MS;fontSize=14;fontStyle=1" value="Query Engine/DWH" vertex="1">
-          <mxGeometry height="30" width="140" x="1130" y="200" as="geometry" />
+        <mxCell id="dfM-ySF2d0wptdbFrbN6-32" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontFamily=Comic Sans MS;fontSize=16;fontStyle=1" value="Query Engine&lt;br&gt;DWH" vertex="1">
+          <mxGeometry height="30" width="150" x="1132" y="200" as="geometry" />
         </mxCell>
-        <mxCell id="dfM-ySF2d0wptdbFrbN6-33" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontFamily=Comic Sans MS;fontSize=14;fontStyle=1" value="BI Tools" vertex="1">
+        <mxCell id="dfM-ySF2d0wptdbFrbN6-33" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontFamily=Comic Sans MS;fontSize=16;fontStyle=1" value="BI Tools" vertex="1">
           <mxGeometry height="30" width="70" x="1380" y="406.5" as="geometry" />
         </mxCell>
-        <mxCell id="dfM-ySF2d0wptdbFrbN6-34" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontFamily=Comic Sans MS;fontSize=14;fontStyle=1" value="Distributed Storage" vertex="1">
-          <mxGeometry height="30" width="140" x="320" y="1010" as="geometry" />
+        <mxCell id="dfM-ySF2d0wptdbFrbN6-34" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontFamily=Comic Sans MS;fontSize=16;fontStyle=1" value="Distributed Storage" vertex="1">
+          <mxGeometry height="30" width="160" x="320" y="1010" as="geometry" />
         </mxCell>
-        <mxCell id="dfM-ySF2d0wptdbFrbN6-35" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontFamily=Comic Sans MS;fontSize=14;fontStyle=1" value="Infrastructure" vertex="1">
+        <mxCell id="dfM-ySF2d0wptdbFrbN6-35" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontFamily=Comic Sans MS;fontSize=16;fontStyle=1" value="Infrastructure" vertex="1">
           <mxGeometry height="30" width="140" x="320" y="1110" as="geometry" />
         </mxCell>
-        <mxCell id="dfM-ySF2d0wptdbFrbN6-36" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontFamily=Comic Sans MS;fontSize=14;fontStyle=1;rotation=-90;" value="Columnar Data Format" vertex="1">
-          <mxGeometry height="30" width="160" x="330" y="882.8" as="geometry" />
+        <mxCell id="dfM-ySF2d0wptdbFrbN6-36" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontFamily=Comic Sans MS;fontSize=16;fontStyle=1;rotation=-90;" value="Columnar Data Format" vertex="1">
+          <mxGeometry height="30" width="185" x="317.5" y="870.3" as="geometry" />
         </mxCell>
         <mxCell id="dfM-ySF2d0wptdbFrbN6-37" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontFamily=Comic Sans MS;fontSize=13;sketch=1;curveFitting=1;jiggle=2;fillColor=#a0522d;fontColor=#333333;strokeColor=#6D1F00;" value="Bronze" vertex="1">
           <mxGeometry height="30" width="120" x="340" y="650" as="geometry" />
@@ -552,7 +552,7 @@
             <mxPoint x="350" y="800" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="dfM-ySF2d0wptdbFrbN6-41" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontFamily=Comic Sans MS;fontSize=14;fontStyle=1" value="Layers" vertex="1">
+        <mxCell id="dfM-ySF2d0wptdbFrbN6-41" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontFamily=Comic Sans MS;fontSize=16;fontStyle=1" value="Layers" vertex="1">
           <mxGeometry height="30" width="60" x="340" y="620" as="geometry" />
         </mxCell>
       </root>
