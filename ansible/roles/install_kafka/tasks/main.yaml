@@ -36,8 +36,15 @@
     mode: "0600"
   when:
   - inventory_hostname == first_cp
-  - apache_kafka_external_enabled | bool
   - apache_kafka_haproxy_tcp_enabled | bool
+  - >-
+    (apache_kafka_external_enabled | bool)
+    or
+    (
+      (apache_kafka_schema_registry_enabled | bool)
+      and
+      (apache_kafka_schema_registry_external_enabled | bool)
+    )
 
 - name: Apply HAProxy TCP services config for Kafka
   ansible.builtin.command: >-
@@ -50,8 +57,15 @@
     or 'patched' in apache_kafka_haproxy_tcp_apply.stdout
   when:
   - inventory_hostname == first_cp
-  - apache_kafka_external_enabled | bool
   - apache_kafka_haproxy_tcp_enabled | bool
+  - >-
+    (apache_kafka_external_enabled | bool)
+    or
+    (
+      (apache_kafka_schema_registry_enabled | bool)
+      and
+      (apache_kafka_schema_registry_external_enabled | bool)
+    )
 
 - name: Wait for Apache Kafka StatefulSet rollout
   ansible.builtin.command: >-
@@ -61,6 +75,17 @@
   register: apache_kafka_rollout
   changed_when: false
   when: inventory_hostname == first_cp
+
+- name: Wait for Schema Registry deployment rollout
+  ansible.builtin.command: >-
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf -n {{ apache_kafka_namespace }}
+    rollout status deployment/{{ apache_kafka_schema_registry_deployment_name }}
+    --timeout={{ apache_kafka_rollout_timeout }}
+  register: apache_kafka_schema_registry_rollout
+  changed_when: false
+  when:
+  - inventory_hostname == first_cp
+  - apache_kafka_schema_registry_enabled | bool
 
 - name: Show Apache Kafka pods
   ansible.builtin.command: >-
@@ -87,3 +112,39 @@
   ansible.builtin.debug:
     var: apache_kafka_services.stdout_lines
   when: inventory_hostname == first_cp
+
+- name: Show Schema Registry services
+  ansible.builtin.command: >-
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf -n {{ apache_kafka_namespace }}
+    get svc -l app=schema-registry -o wide
+  register: apache_kafka_schema_registry_services
+  changed_when: false
+  when:
+  - inventory_hostname == first_cp
+  - apache_kafka_schema_registry_enabled | bool
+
+- name: Show Schema Registry service output
+  ansible.builtin.debug:
+    var: apache_kafka_schema_registry_services.stdout_lines
+  when:
+  - inventory_hostname == first_cp
+  - apache_kafka_schema_registry_enabled | bool
+
+- name: Show Schema Registry ingress resources
+  ansible.builtin.command: >-
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf -n {{ apache_kafka_namespace }}
+    get ingress {{ apache_kafka_schema_registry_service_name }} -o wide
+  register: apache_kafka_schema_registry_ingress
+  changed_when: false
+  when:
+  - inventory_hostname == first_cp
+  - apache_kafka_schema_registry_enabled | bool
+  - apache_kafka_schema_registry_ingress_enabled | bool
+
+- name: Show Schema Registry ingress output
+  ansible.builtin.debug:
+    var: apache_kafka_schema_registry_ingress.stdout_lines
+  when:
+  - inventory_hostname == first_cp
+  - apache_kafka_schema_registry_enabled | bool
+  - apache_kafka_schema_registry_ingress_enabled | bool

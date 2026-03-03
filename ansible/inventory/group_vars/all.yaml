@@ -31,7 +31,7 @@ firewalld_ports_all:
   - { port: "9000", proto: "tcp" }           # MinIO API
   - { port: "9001", proto: "tcp" }           # MinIO Console
   - { port: "9092-9094", proto: "tcp" }      # Kafka external broker ports via HAProxy TCP
-  - { port: "8081-8083", proto: "tcp" }      # Kafka / Flink REST (8081)
+  - { port: "8081-8083", proto: "tcp" }      # Schema Registry / Flink REST (8081)
   - { port: "8030", proto: "tcp" }           # StarRocks FE HTTP
   - { port: "9030", proto: "tcp" }           # StarRocks FE SQL
   - { port: "9020", proto: "tcp" }           # StarRocks FE Thrift
@@ -142,13 +142,16 @@ services:
   - minio-console
   - minio
   - kafka
+  - schema-registry
+  - metabase
 
 haproxy_ingress_ip: 192.168.0.200
 
-# HAProxy TCP forwarding for Apache Kafka brokers and StarRocks FE SQL.
+# HAProxy TCP forwarding for Schema Registry, Apache Kafka brokers, and StarRocks FE SQL.
 haproxy_ingress_extra_args:
   - "--configmap-tcp-services={{ haproxy_ingress_namespace | default('ingress-controller') }}/haproxy-tcp-services"
 haproxy_ingress_service_tcp_ports:
+  - { name: "schema-registry", port: 8081, targetPort: 8081 }
   - { name: "kafka-0", port: 9092, targetPort: 9092 }
   - { name: "kafka-1", port: 9093, targetPort: 9093 }
   - { name: "kafka-2", port: 9094, targetPort: 9094 }

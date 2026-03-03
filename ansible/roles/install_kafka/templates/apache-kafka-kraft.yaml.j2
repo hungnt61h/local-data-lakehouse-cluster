@@ -184,3 +184,105 @@ spec:
 {% if apache_kafka_storage_class | trim | length > 0 %}
       storageClassName: {{ apache_kafka_storage_class | quote }}
 {% endif %}
+{% if apache_kafka_schema_registry_enabled | bool %}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ apache_kafka_schema_registry_service_name }}
+  namespace: {{ apache_kafka_namespace }}
+  labels:
+    app: schema-registry
+spec:
+  type: ClusterIP
+  selector:
+    app: schema-registry
+  ports:
+  - name: http
+    port: {{ apache_kafka_schema_registry_port }}
+    targetPort: {{ apache_kafka_schema_registry_port }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ apache_kafka_schema_registry_deployment_name }}
+  namespace: {{ apache_kafka_namespace }}
+  labels:
+    app: schema-registry
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: schema-registry
+  template:
+    metadata:
+      labels:
+        app: schema-registry
+    spec:
+      enableServiceLinks: {{ 'true' if apache_kafka_schema_registry_enable_service_links else 'false' }}
+      containers:
+      - name: schema-registry
+        image: "{{ apache_kafka_schema_registry_image_repository }}:{{ apache_kafka_schema_registry_image_tag }}"
+        imagePullPolicy: {{ apache_kafka_schema_registry_image_pull_policy }}
+        ports:
+        - name: http
+          containerPort: {{ apache_kafka_schema_registry_port }}
+        env:
+        - name: SCHEMA_REGISTRY_HOST_NAME
+          value: "{{ apache_kafka_schema_registry_service_name }}.{{ apache_kafka_namespace }}.svc.{{ apache_kafka_cluster_domain }}"
+        - name: SCHEMA_REGISTRY_LISTENERS
+          value: "http://0.0.0.0:{{ apache_kafka_schema_registry_port }}"
+        - name: SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS
+          value: "PLAINTEXT://{{ apache_kafka_bootstrap_service_name }}.{{ apache_kafka_namespace }}.svc.{{ apache_kafka_cluster_domain }}:{{ apache_kafka_internal_listener_port }}"
+        - name: SCHEMA_REGISTRY_KAFKASTORE_TOPIC_REPLICATION_FACTOR
+          value: "{{ apache_kafka_schema_registry_topic_replication_factor }}"
+        readinessProbe:
+          httpGet:
+            path: /subjects
+            port: http
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          timeoutSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /subjects
+            port: http
+          initialDelaySeconds: 40
+          periodSeconds: 20
+          timeoutSeconds: 5
+{% if apache_kafka_schema_registry_ingress_enabled | bool %}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ apache_kafka_schema_registry_service_name }}
+  namespace: {{ apache_kafka_namespace }}
+{% if apache_kafka_schema_registry_ingress_annotations | length > 0 %}
+  annotations:
+{% for ingress_annotation_key, ingress_annotation_value in apache_kafka_schema_registry_ingress_annotations.items() %}
+    {{ ingress_annotation_key }}: {{ ingress_annotation_value | quote }}
+{% endfor %}
+{% endif %}
+spec:
+{% if apache_kafka_schema_registry_ingress_class_name | trim | length > 0 %}
+  ingressClassName: {{ apache_kafka_schema_registry_ingress_class_name }}
+{% endif %}
+  rules:
+  - host: {{ apache_kafka_schema_registry_ingress_host }}
+    http:
+      paths:
+      - path: {{ apache_kafka_schema_registry_ingress_path }}
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ apache_kafka_schema_registry_service_name }}
+            port:
+              number: {{ apache_kafka_schema_registry_port }}
+{% if apache_kafka_schema_registry_ingress_tls_enabled | bool %}
+  tls:
+  - secretName: {{ apache_kafka_schema_registry_ingress_tls_secret_name }}
+    hosts:
+    - {{ apache_kafka_schema_registry_ingress_host }}
+{% endif %}
+{% endif %}
+{% endif %}

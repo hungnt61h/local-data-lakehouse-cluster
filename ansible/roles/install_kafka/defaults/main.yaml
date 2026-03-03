@@ -30,6 +30,25 @@ apache_kafka_haproxy_namespace: "{{ haproxy_ingress_namespace | default('ingress
 
 apache_kafka_rollout_timeout: 15m
 
+apache_kafka_schema_registry_enabled: true
+apache_kafka_schema_registry_deployment_name: schema-registry
+apache_kafka_schema_registry_service_name: schema-registry
+apache_kafka_schema_registry_image_repository: confluentinc/cp-schema-registry
+apache_kafka_schema_registry_image_tag: "7.8.0"
+apache_kafka_schema_registry_image_pull_policy: IfNotPresent
+apache_kafka_schema_registry_port: 8081
+apache_kafka_schema_registry_topic_replication_factor: 3
+apache_kafka_schema_registry_enable_service_links: false
+apache_kafka_schema_registry_external_enabled: true
+apache_kafka_schema_registry_external_port: 8081
+apache_kafka_schema_registry_ingress_enabled: true
+apache_kafka_schema_registry_ingress_class_name: haproxy
+apache_kafka_schema_registry_ingress_host: "schema-registry.{{ domain }}"
+apache_kafka_schema_registry_ingress_path: /
+apache_kafka_schema_registry_ingress_annotations: {}
+apache_kafka_schema_registry_ingress_tls_enabled: false
+apache_kafka_schema_registry_ingress_tls_secret_name: schema-registry-tls
+
 apache_kafka_node_selector: {}
 apache_kafka_tolerations: []
 apache_kafka_affinity:

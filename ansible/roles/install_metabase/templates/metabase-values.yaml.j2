@@ -1,0 +1,88 @@
+replicaCount: {{ metabase_replica_count }}
+
+image:
+  repository: {{ metabase_image_repository | quote }}
+{% if metabase_image_tag | trim | length > 0 %}
+  tag: {{ metabase_image_tag | quote }}
+{% endif %}
+  pullPolicy: {{ metabase_image_pull_policy }}
+
+listen:
+  host: {{ metabase_listen_host | quote }}
+  port: {{ metabase_listen_port }}
+
+password:
+  complexity: {{ metabase_password_complexity }}
+  length: {{ metabase_password_length }}
+
+timeZone: {{ metabase_time_zone | quote }}
+emojiLogging: {{ 'true' if metabase_emoji_logging else 'false' }}
+colorLogging: {{ 'true' if metabase_color_logging else 'false' }}
+
+database:
+  type: {{ metabase_database_type }}
+{% if metabase_database_type == "h2" %}
+  persistence:
+    type: pvc
+    enabled: {{ 'true' if metabase_database_persistence_enabled else 'false' }}
+    size: {{ metabase_database_persistence_size }}
+{% if metabase_database_persistence_storage_class_name | trim | length > 0 %}
+    storageClassName: {{ metabase_database_persistence_storage_class_name | quote }}
+{% endif %}
+{% elif metabase_database_type == "postgres" %}
+  host: {{ metabase_database_host | quote }}
+  port: {{ metabase_database_port }}
+  dbname: {{ metabase_database_name | quote }}
+  username: {{ metabase_database_user | quote }}
+  password: {{ metabase_database_password | quote }}
+{% endif %}
+
+service:
+  name: {{ metabase_service_name }}
+  type: {{ metabase_service_type }}
+  externalPort: {{ metabase_service_external_port }}
+  internalPort: {{ metabase_service_internal_port }}
+
+ingress:
+  enabled: {{ 'true' if metabase_ingress_enabled else 'false' }}
+{% if metabase_ingress_class_name | trim | length > 0 %}
+  className: {{ metabase_ingress_class_name | quote }}
+{% endif %}
+  hosts:
+  - {{ metabase_ingress_host | quote }}
+  path: {{ metabase_ingress_path }}
+  pathType: {{ metabase_ingress_path_type }}
+{% if metabase_ingress_annotations | length > 0 %}
+  annotations:
+{% for ingress_annotation_key, ingress_annotation_value in metabase_ingress_annotations.items() %}
+    {{ ingress_annotation_key }}: {{ ingress_annotation_value | quote }}
+{% endfor %}
+{% else %}
+  annotations: {}
+{% endif %}
+{% if metabase_ingress_tls_enabled | bool %}
+  tls:
+  - secretName: {{ metabase_ingress_tls_secret_name }}
+    hosts:
+    - {{ metabase_ingress_host }}
+{% else %}
+  tls: []
+{% endif %}
+
+resources:
+{{ metabase_resources | to_nice_yaml(indent=2) | indent(2, true) }}
+
+{% if metabase_node_selector | length > 0 %}
+nodeSelector:
+{{ metabase_node_selector | to_nice_yaml(indent=2) | indent(2, true) }}
+{% endif %}
+
+{% if metabase_tolerations | length > 0 %}
+tolerations:
+{{ metabase_tolerations | to_nice_yaml(indent=2) | indent(2, true) }}
+{% endif %}
+
+{% if metabase_affinity | length > 0 %}
+affinity:
+{{ metabase_affinity | to_nice_yaml(indent=2) | indent(2, true) }}
+{% endif %}

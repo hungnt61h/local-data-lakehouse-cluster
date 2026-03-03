@@ -36,7 +36,7 @@
 | node5 | Worker        | 192.168.0.34 | node5.dp.com | 8    | 32 GB  | 200 GB  |
 
 ## III. Architecture
-Below is the desired architecture, however, it's overkilled for a lab environment. Therefore, only core components are installed (ignore authentication, authorization, and monitoring).
+Below is the desired architecture, however, it's overkilled for a lab environment. Therefore, only core components are installed (ignore authentication, authorization, and monitoring/alerts).
 
 ![Alt Text](./architecture.gif)
 
@@ -52,6 +52,7 @@ Below is the desired architecture, however, it's overkilled for a lab environmen
 8. StarRocks
 9. Gravitino + Gravitino Iceberg REST Catalog Server (MySQL metadata storage)
 10. Airflow (Airflow 3.1.7, Kubernetes executor, MinIO DAG/log storage)
+11. Metabase
 
 ### 2. Install K8s and configure OS with Ansible
 *Before doing the steps below, install `ansible` first ([guide](https://docs.ansible.com/projects/ansible/latest/installation_guide/intro_installation.html))*
@@ -82,6 +83,7 @@ ansible-playbook -i ./inventory install_starrocks.yml --ask-vault-pass
 ansible-playbook -i ./inventory install_flink_operator.yml --ask-vault-pass
 ansible-playbook -i ./inventory install_gravitino.yml --ask-vault-pass
 ansible-playbook -i ./inventory install_airflow.yml --ask-vault-pass
+ansible-playbook -i ./inventory install_metabase.yml --ask-vault-pass
 ```
 
 4. Optional firewall tuning for direct Flink/Spark host ports
@@ -98,7 +100,11 @@ ansible-playbook -i ./inventory update_firewall.yml --ask-vault-pass
 
 6. Apache Kafka (KRaft) notes
 - Kafka role deploys Apache Kafka `4.2.0` in KRaft mode with 3 brokers and persistent PVCs (no MinIO dependency)
+- Kafka role also deploys Confluent Schema Registry in namespace `kafka`
 - External broker ports `9092-9094` are routed by HAProxy TCP config
+- Schema Registry is exposed through HAProxy TCP on `http://schema-registry.<your-domain>:8081`
+- Schema Registry ingress host is also available at `http://schema-registry.<your-domain>`
+- Schema Registry pod disables Kubernetes service-link env injection to avoid deprecated `PORT` startup failure
 - Apply updated firewall and hosts mappings:
 ```shell
 ansible-playbook -i ./inventory update_firewall.yml --ask-vault-pass
@@ -110,6 +116,7 @@ ansible-playbook -i ./inventory install_haproxy_ingress.yml --ask-vault-pass
 
 7. StarRocks (shared-data) notes
 - StarRocks role deploys StarRocks shared-data mode via `kube-starrocks` chart with `3` FE and `3` CN replicas
+- FE/CN images default to StarRocks `4.0-latest` (`starrocks/fe-ubuntu` and `starrocks/cn-ubuntu`)
 - FE pods request/limit `2` CPU and `4Gi` memory, and use a `10Gi` PVC (`local-path` by default) for FE metadata
 - CN pods request/limit `4` CPU and `8Gi` memory
 - FE is configured to use MinIO as S3-compatible shared storage
@@ -152,6 +159,21 @@ ansible-playbook -i ./inventory install_haproxy_ingress.yml --ask-vault-pass
 - Triggerer log PVC is disabled by default (`airflow_triggerer_persistence_enabled: false`)
 - Internal PostgreSQL uses static local PV/PVC (5Gi by default)
 - Access Airflow UI/API at `http://airflow.<your-domain>`
+- If you changed `services`, ingress host/IP, or firewall variables, rerun:
+```shell
+ansible-playbook -i ./inventory update_firewall.yml --ask-vault-pass
+ansible-playbook -i ./inventory install_haproxy_ingress.yml --ask-vault-pass
+```
+
+10. Metabase notes
+- Metabase role deploys Helm chart `pmint93/metabase` in namespace `metabase`
+- Role deploys an internal PostgreSQL metadata database (`metabase-postgresql`) in the same namespace
+- PostgreSQL metadata storage uses a `5Gi` PVC (`local-path` by default)
+- Ingress defaults to `http://metabase.<your-domain>` using class `haproxy`
+- Bootstrap job initializes admin credentials `admin@<domain>/admin` (Metabase login email defaults to `admin@dp.com`)
+- Password policy defaults are set to `weak` with minimum length `5` so the bootstrap password `admin` is accepted
+- `/etc/hosts` mapping includes `metabase.<your-domain>` through `services` + `update_firewall` role
+- No additional firewall/Haproxy TCP ports are required (Metabase is served via ingress on existing `80/443`)
 - If you changed `services`, ingress host/IP, or firewall variables, rerun:
 ```shell
 ansible-playbook -i ./inventory update_firewall.yml --ask-vault-pass

@@ -1,0 +1,83 @@
+metabase_release_name: metabase
+metabase_deployment_name: "{{ metabase_release_name }}"
+metabase_namespace: metabase
+metabase_service_name: metabase
+
+metabase_repo_name: pmint93
+metabase_repo_url: https://pmint93.github.io/helm-charts
+metabase_chart_ref: "{{ metabase_repo_name }}/metabase"
+metabase_chart_version: "2.24.2"
+
+metabase_helm_timeout: 15m
+metabase_rollout_timeout: 15m
+
+metabase_replica_count: 1
+metabase_image_repository: metabase/metabase
+metabase_image_tag: ""
+metabase_image_pull_policy: IfNotPresent
+
+metabase_listen_host: "0.0.0.0"
+metabase_listen_port: 3000
+
+# Set weak/5 to support bootstrap credential admin/admin.
+metabase_password_complexity: weak
+metabase_password_length: 5
+
+metabase_time_zone: UTC
+metabase_emoji_logging: true
+metabase_color_logging: true
+
+metabase_database_type: postgres
+metabase_database_host: "{{ metabase_metadata_postgresql_service_name }}.{{ metabase_namespace }}.svc.{{ metabase_cluster_domain }}"
+metabase_database_port: 5432
+metabase_database_name: metabase
+metabase_database_user: metabase
+metabase_database_password: metabase
+
+# Optional fallback only when metabase_database_type=h2.
+metabase_database_persistence_enabled: true
+metabase_database_persistence_storage_class_name: local-path
+metabase_database_persistence_size: 5Gi
+
+metabase_metadata_postgresql_enabled: true
+metabase_metadata_postgresql_statefulset_name: metabase-postgresql
+metabase_metadata_postgresql_service_name: metabase-postgresql
+metabase_metadata_postgresql_image_repository: postgres
+metabase_metadata_postgresql_image_tag: "17.4"
+metabase_metadata_postgresql_image_pull_policy: IfNotPresent
+metabase_metadata_postgresql_storage_class_name: local-path
+metabase_metadata_postgresql_storage_size: 5Gi
+metabase_metadata_postgresql_storage_access_mode: ReadWriteOnce
+
+metabase_service_type: ClusterIP
+metabase_service_external_port: 80
+metabase_service_internal_port: 3000
+
+metabase_ingress_enabled: true
+metabase_ingress_class_name: haproxy
+metabase_ingress_host: "metabase.{{ domain }}"
+metabase_ingress_path: /
+metabase_ingress_path_type: Prefix
+metabase_ingress_annotations: {}
+metabase_ingress_tls_enabled: false
+metabase_ingress_tls_secret_name: metabase-tls
+
+metabase_resources: {}
+metabase_node_selector: {}
+metabase_tolerations: []
+metabase_affinity: {}
+
+metabase_bootstrap_enabled: true
+metabase_bootstrap_job_name: metabase-bootstrap-admin
+metabase_bootstrap_job_image: curlimages/curl:8.12.1
+metabase_bootstrap_job_timeout: 10m
+metabase_bootstrap_wait_retries: 120
+metabase_bootstrap_wait_interval_seconds: 5
+metabase_cluster_domain: cluster.local
+
+metabase_admin_first_name: admin
+metabase_admin_last_name: admin
+metabase_admin_email: admin@{{ domain }}
+metabase_admin_password: admin
+metabase_site_name: Metabase
+metabase_site_locale: en
