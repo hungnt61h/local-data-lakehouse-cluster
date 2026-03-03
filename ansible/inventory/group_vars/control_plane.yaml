@@ -1,9 +1,0 @@
-firewalld_ports_control_plane:
-  - { port: "6443", proto: "tcp" }        # kube-apiserver
-  - { port: "2379-2380", proto: "tcp" }   # etcd client/server
-  - { port: "10257", proto: "tcp" }       # controller-manager
-  - { port: "10259", proto: "tcp" }       # scheduler
-
-firewalld_services_control_plane: []
-
-firewalld_rich_rules_control_plane: []

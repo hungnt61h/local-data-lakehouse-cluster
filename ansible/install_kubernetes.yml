@@ -1,8 +1,0 @@
----
-- name: Install Kubernetes cluster
-  hosts: all
-  gather_facts: true
-  become: true
-  tasks:
-  - include_role:
-      name: install_kubernetes

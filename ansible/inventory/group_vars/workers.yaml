@@ -1,3 +1,0 @@
-firewalld_ports_workers: []
-firewalld_services_workers: []
-firewalld_rich_rules_workers: []
